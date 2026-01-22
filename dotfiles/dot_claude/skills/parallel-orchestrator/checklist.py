@@ -19,7 +19,8 @@ Chain.INK: VolumeConfig.from_chain(Chain.INK, "ethusd"),
 Chain.MONAD: VolumeConfig.from_chain(Chain.MONAD, "ethusd"),
 Chain.POLYGON: VolumeConfig.from_chain(Chain.POLYGON, "maticusd"),
 Chain.UNICHAIN: VolumeConfig.from_chain(Chain.UNICHAIN, "ethusd"),
-pahse 2
+phase 2 (re-validation of phase 1 chains with different date ranges)
+# Note: These chains are intentionally repeated for validation across phases
 Chain.MONAD: VolumeConfig.from_chain(Chain.MONAD, "ethusd"),
 Chain.POLYGON: VolumeConfig.from_chain(Chain.POLYGON, "maticusd"),
 Chain.UNICHAIN: VolumeConfig.from_chain(Chain.UNICHAIN, "ethusd"),

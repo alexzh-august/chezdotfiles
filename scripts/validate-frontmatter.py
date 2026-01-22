@@ -85,12 +85,18 @@ def validate_component(file_path: Path, component_type: str) -> list[str]:
         # Validate integration_points
         integration_points = figma_config.get("integration_points", [])
         if integration_points:
-            for point in integration_points:
-                if point not in VALID_INTEGRATION_POINTS:
-                    issues.append(
-                        f"[WARN] Unknown integration_point: {point}. "
-                        f"Consider adding to VALID_INTEGRATION_POINTS"
-                    )
+            if not isinstance(integration_points, list):
+                issues.append(
+                    f"[WARN] integration_points must be a list, got {type(integration_points).__name__}. "
+                    f"Valid values: {VALID_INTEGRATION_POINTS}"
+                )
+            else:
+                for point in integration_points:
+                    if point not in VALID_INTEGRATION_POINTS:
+                        issues.append(
+                            f"[WARN] Unknown integration_point: {point}. "
+                            f"Consider adding to VALID_INTEGRATION_POINTS"
+                        )
 
     return issues
 

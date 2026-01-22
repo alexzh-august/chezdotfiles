@@ -113,13 +113,13 @@ class TestFrontmatterSchema:
             assert fm is not None, f"Missing frontmatter in {file_path}"
 
     def test_agents_have_required_fields(self):
-        """Agents should have name and description."""
+        """Agents should have both name and description."""
         for file_path in self.get_component_files("agents"):
             fm = self.parse_frontmatter(file_path)
             if fm:
-                # Name is required for agents
-                assert "name" in fm or "description" in fm, (
-                    f"Agent {file_path} missing name or description"
+                # Both name and description are required for agents
+                assert "name" in fm and "description" in fm, (
+                    f"Agent {file_path} missing name and/or description"
                 )
 
     def test_figma_diagram_types_valid(self):

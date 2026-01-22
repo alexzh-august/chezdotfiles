@@ -19,17 +19,17 @@ font-thicken = true
 theme = "Shades Of Purple"
 
 # Custom overrides for Claude-inspired aesthetic
-background = 1a1625
-foreground = e4e4e7
+background = #1a1625
+foreground = #e4e4e7
 
 # Glass transparency effect
 background-opacity = 0.88
 background-blur-radius = 20
 
 # Claude's signature purple/coral accents
-cursor-color = a855f7
-selection-background = 6d28d9
-selection-foreground = ffffff
+cursor-color = #a855f7
+selection-background = #6d28d9
+selection-foreground = #ffffff
 
 # Custom palette overrides for Claude vibes
 # Purples and violets

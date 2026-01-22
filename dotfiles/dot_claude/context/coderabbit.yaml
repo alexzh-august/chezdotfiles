@@ -5,7 +5,8 @@
 # Review language (defaults to repository language)
 language: en-US
 
-# Review profile: "chill" for fewer nitpicks, "assertive" for thorough reviews
+# Custom tone guidance (free-form instructions for review style)
+# Note: For preset profiles, use the separate "profile" key (chill/assertive)
 tone_instructions: >
   Be thorough but constructive. Focus on:
   - Security vulnerabilities (OWASP Top 10)
@@ -33,7 +34,7 @@ reviews:
   # High-level summary
   high_level_summary: true
 
-  # Review status: "enabled" or "disabled"
+  # Include poem in PR summary: "enabled" or "disabled"
   poem: disabled
 
   # Collapse walkthrough

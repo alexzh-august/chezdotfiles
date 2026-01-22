@@ -53,13 +53,18 @@ CHANGED_FILES=$(git diff --stat HEAD~1 2>/dev/null || git diff --stat --cached 2
 PR_TEMPLATE=$(cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null || echo "No PR template found")
 ```
 
+## Prerequisites
+
+- Git installed and configured
+- [GitHub CLI (gh)](https://cli.github.com/) installed for PR creation
+
 ## Quick Mode Instructions
 
 1. Review the git status above
 2. Stage any unstaged changes if needed: `git add -A`
 3. Create a meaningful commit message based on the changes
 4. Push to the remote branch
-5. Use `gh pr create` to open a pull request with:
+5. Use `gh pr create` (requires GitHub CLI) to open a pull request with:
    - A descriptive title summarizing the changes
    - A body that follows the PR template (if available) or describes what changed and why
    - Appropriate labels if the project uses them

@@ -23,13 +23,14 @@ else
   LINT_CMD="echo 'No linter detected'"
 fi
 
-# Changed files for targeted linting
+# Changed files for targeted linting (optional: filter to these if linter supports it)
 CHANGED_FILES=$(git diff --name-only HEAD 2>/dev/null || echo "")
+echo "Changed files: $CHANGED_FILES"
 ```
 
 ## Instructions
 
-1. Run the linter on changed files first (faster feedback)
+1. Run the linter (on changed files if supported, or full project)
 2. Fix any auto-fixable issues
 3. Manually address remaining issues
 4. Run linter again to verify all issues resolved

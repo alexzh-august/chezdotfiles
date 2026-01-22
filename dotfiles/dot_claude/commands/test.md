@@ -11,7 +11,12 @@ Run the test suite to verify your changes work correctly.
 ```bash
 # Detect test framework
 if [ -f "package.json" ]; then
-  TEST_CMD=$(cat package.json | jq -r '.scripts.test // "npm test"')
+  # Use jq if available, otherwise fall back to npm test
+  if command -v jq &> /dev/null; then
+    TEST_CMD=$(jq -r '.scripts.test // "npm test"' package.json)
+  else
+    TEST_CMD="npm test"
+  fi
   echo "Node project detected. Test command: $TEST_CMD"
 elif [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
   TEST_CMD="pytest"

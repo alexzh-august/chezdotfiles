@@ -32,12 +32,14 @@ Check `.claude/settings.json` for the current allow/deny lists.
 - `Bash(git status:*)` - Check status
 - `Bash(git diff:*)` - View changes
 - `Bash(git log:*)` - View history
-- `Bash(git branch:*)` - Branch operations
+- `Bash(git branch --list:*)` - List branches (read-only)
 
-### File operations
+### File operations (use with caution)
 - `Read(*)` - Read any file
-- `Write(*)` - Write files (use with caution)
-- `Edit(*)` - Edit files
+
+Note: `Write()` and `Edit()` are file modification operations. Pre-allowing
+these is convenient but carries risk. Consider allowing only for specific
+project directories if needed.
 
 ## Adding Permissions
 
