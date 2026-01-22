@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Figma Remote MCP Server configuration for Claude Code/Desktop",
+  "mcpServers": {
+    "figma": {
+      "url": "https://mcp.figma.com/sse",
+      "transport": "sse",
+      "description": "Figma's hosted MCP endpoint - no desktop app required",
+      "authentication": "oauth",
+      "capabilities": [
+        "get_figma_data",
+        "get_code",
+        "get_make_resources"
+      ],
+      "rateLimits": {
+        "starter": "6 calls/month",
+        "professional": "Tier 1 REST API limits"
+      }
+    }
+  },
+  "usage": {
+    "claudeCode": "claude mcp add --transport sse figma https://mcp.figma.com/sse",
+    "claudeDesktop": "Add this config to ~/.claude/claude_desktop_config.json",
+    "authentication": "Run /mcp in Claude, select figma, then Authenticate"
+  }
+}

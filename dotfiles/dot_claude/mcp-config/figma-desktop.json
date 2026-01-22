@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Figma Desktop MCP Server configuration (local processing)",
+  "mcpServers": {
+    "figma-desktop": {
+      "url": "http://127.0.0.1:3845/mcp",
+      "transport": "http",
+      "description": "Local MCP server through Figma Desktop app",
+      "requirements": [
+        "Figma Desktop app installed and running",
+        "Dev Mode enabled (Shift+D)",
+        "MCP server enabled in inspect panel"
+      ],
+      "capabilities": [
+        "get_figma_data",
+        "get_code",
+        "get_make_resources",
+        "real_time_sync"
+      ],
+      "advantages": [
+        "No network latency",
+        "Works offline after initial setup",
+        "Real-time design updates"
+      ]
+    }
+  },
+  "setup": {
+    "step1": "Open Figma Desktop app",
+    "step2": "Open any Design file",
+    "step3": "Toggle to Dev Mode (Shift+D)",
+    "step4": "In MCP server section, click 'Enable desktop MCP server'",
+    "step5": "Add this config to Claude Desktop settings"
+  }
+}
