@@ -1,0 +1,161 @@
+# Starship Prompt Configuration
+# Optimized for Claude Code and development workflows
+# https://starship.rs/config/
+
+# Timeout for commands (ms)
+command_timeout = 1000
+
+# Don't print a new line at the start of the prompt
+add_newline = true
+
+# Prompt format
+format = """
+$username\
+$hostname\
+$directory\
+$git_branch\
+$git_state\
+$git_status\
+$python\
+$nodejs\
+$rust\
+$golang\
+$cmd_duration\
+$line_break\
+$character"""
+
+# Right prompt
+right_format = """$time"""
+
+# ==============================================================================
+# Core Modules
+# ==============================================================================
+
+[character]
+# Claude-inspired purple prompt
+success_symbol = "[❯](bold #a855f7)"
+error_symbol = "[❯](bold #f97316)"
+vicmd_symbol = "[❮](bold #22d3ee)"
+
+[directory]
+truncation_length = 4
+truncate_to_repo = true
+style = "bold #c084fc"
+read_only = " 🔒"
+format = "[$path]($style)[$read_only]($read_only_style) "
+
+[username]
+style_user = "bold blue"
+style_root = "bold red"
+format = "[$user]($style)@"
+show_always = false
+
+[hostname]
+ssh_only = true
+format = "[$hostname](bold yellow):"
+disabled = false
+
+# ==============================================================================
+# Git Modules
+# ==============================================================================
+
+[git_branch]
+symbol = " "
+style = "bold #a855f7"
+format = "[$symbol$branch(:$remote_branch)]($style) "
+truncation_length = 20
+
+[git_state]
+format = '[\($state( $progress_current of $progress_total)\)]($style) '
+cherry_pick = "[🍒 PICKING](bold red)"
+rebase = "[📝 REBASING](bold yellow)"
+merge = "[🔀 MERGING](bold blue)"
+revert = "[⏪ REVERTING](bold red)"
+bisect = "[🔍 BISECTING](bold magenta)"
+
+[git_status]
+style = "bold red"
+format = '([$all_status$ahead_behind]($style) )'
+conflicted = "⚔️ "
+ahead = "⇡${count}"
+behind = "⇣${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+untracked = "?${count}"
+stashed = "📦"
+modified = "!${count}"
+staged = "+${count}"
+renamed = "»${count}"
+deleted = "✘${count}"
+
+# ==============================================================================
+# Language Modules
+# ==============================================================================
+
+[python]
+symbol = "🐍 "
+style = "bold yellow"
+format = '[${symbol}${pyenv_prefix}(${version} )(\($virtualenv\) )]($style)'
+detect_extensions = ["py"]
+detect_files = ["requirements.txt", "pyproject.toml", "Pipfile", ".python-version"]
+
+[nodejs]
+symbol = "⬢ "
+style = "bold green"
+format = "[$symbol($version )]($style)"
+detect_extensions = ["js", "mjs", "cjs", "ts", "mts", "cts"]
+detect_files = ["package.json", ".nvmrc"]
+
+[rust]
+symbol = "🦀 "
+style = "bold red"
+format = "[$symbol($version )]($style)"
+detect_extensions = ["rs"]
+detect_files = ["Cargo.toml"]
+
+[golang]
+symbol = "🐹 "
+style = "bold cyan"
+format = "[$symbol($version )]($style)"
+detect_extensions = ["go"]
+detect_files = ["go.mod", "go.sum"]
+
+# ==============================================================================
+# Info Modules
+# ==============================================================================
+
+[cmd_duration]
+min_time = 2000
+show_milliseconds = false
+style = "bold yellow"
+format = "[$duration]($style) "
+
+[time]
+disabled = false
+format = "[$time]($style)"
+style = "dimmed white"
+time_format = "%H:%M"
+
+# ==============================================================================
+# Disabled Modules (for performance)
+# ==============================================================================
+
+[aws]
+disabled = true
+
+[azure]
+disabled = true
+
+[gcloud]
+disabled = true
+
+[docker_context]
+disabled = true
+
+[kubernetes]
+disabled = true
+
+[package]
+disabled = true
+
+[battery]
+disabled = true
