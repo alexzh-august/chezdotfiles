@@ -512,6 +512,9 @@ class SidebarApp(App):
 
 Staggered grid:
 ```python
+from textual.app import App, ComposeResult
+from textual.widgets import Static
+
 class MasonryLayout(App):
     CSS = """
     Screen {
@@ -541,6 +544,9 @@ class MasonryLayout(App):
 
 Adjustable split panels:
 ```python
+from textual.app import App
+from textual.reactive import reactive
+
 class ResizableSplit(App):
     left_width = reactive(30)
     

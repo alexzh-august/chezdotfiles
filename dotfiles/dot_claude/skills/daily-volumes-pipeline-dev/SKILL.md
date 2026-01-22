@@ -59,8 +59,8 @@ python -m core_v1.regression.pipeline -sd 20251201 -ed 20251231 -c <CHAIN_ID> --
 | UNICHAIN | 130 | `-c 130` |
 | TAC | 239 | `-c 239` |
 | SONEIUM | 1868 | `-c 1868` |
-| KAVA | 1101 | `-c 1101` |
-| POLYZK | 2222 | `-c 2222` |
+| KAVA | 2222 | `-c 2222` |
+| POLYZK | 1101 | `-c 1101` |
 | TON | -239 | `-c -239` |
 | APTOS | -2 | `-c -2` |
 | SUI | -101 | `-c -101` |
@@ -74,4 +74,10 @@ python -m core_v1.regression.pipeline -sd 20251201 -ed 20251231 -c <CHAIN_ID> --
 
 ## Working Directory
 
-Run from: `/Users/alexzh/defi-data-collection/fractal_internal_scripts`
+Run from the `fractal_internal_scripts` directory within your defi-data-collection project:
+
+```bash
+# Set your project root (add to ~/.zshrc for persistence)
+export DEFI_DATA_DIR=/path/to/defi-data-collection
+cd $DEFI_DATA_DIR/fractal_internal_scripts
+```

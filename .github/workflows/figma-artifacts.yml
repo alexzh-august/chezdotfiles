@@ -108,6 +108,10 @@ jobs:
             python scripts/generate-skill-diagrams.py
           fi
 
+          if [ "${{ needs.detect-changes.outputs.plugins_changed }}" == "true" ]; then
+            python scripts/generate-plugin-diagrams.py
+          fi
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:

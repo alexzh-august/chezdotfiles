@@ -54,11 +54,11 @@ Base: `master`
 
 ## Statistics
 
-- **Total issues found**: ~70+
+- **Total issues found**: 26
 - **Critical/Security**: 6
 - **High Priority**: 7
-- **Medium Priority**: ~30
-- **Low Priority**: ~27
+- **Medium Priority**: 9
+- **Low Priority**: 4
 
 ## Recommendation
 
