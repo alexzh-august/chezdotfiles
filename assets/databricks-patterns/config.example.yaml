@@ -1,0 +1,81 @@
+# Databricks Pattern Detector Configuration
+# Copy to .databricks-patterns.yaml and customize
+
+# Default Unity Catalog settings
+unity_catalog:
+  default_catalog: "main"
+  default_schema: "default"
+
+# Pattern detection settings
+detection:
+  # Include info-level violations (default: false)
+  include_info: false
+
+  # File patterns to exclude from analysis
+  exclude_patterns:
+    - "**/venv/**"
+    - "**/.venv/**"
+    - "**/node_modules/**"
+    - "**/__pycache__/**"
+    - "**/.git/**"
+    - "**/build/**"
+    - "**/dist/**"
+
+  # Patterns to enable/disable by category
+  enabled_categories:
+    - unity_catalog
+    - mcp_server
+    - sql_execution
+    - authentication
+    - vector_search
+    - genie
+
+  # Patterns to disable by ID
+  disabled_patterns: []
+    # - "SQL008"  # Disable SELECT * warning
+    # - "UC005"   # Disable DESCRIBE TABLE suggestion
+
+# Severity overrides
+severity_overrides: {}
+  # UC001: warning  # Downgrade to warning
+  # AUTH003: error  # Keep as error
+
+# Code generation defaults
+generation:
+  mcp_config:
+    include_sql: true
+    include_genie: false
+    include_vector_search: false
+    include_functions: false
+
+  sql:
+    default_limit: 100
+    include_comments: true
+
+# Refactoring settings
+refactoring:
+  sql:
+    add_limit: true
+    default_limit: 100
+    qualify_tables: true
+
+  auth:
+    convert_hardcoded_tokens: true
+    add_env_validation: true
+
+# Output settings
+output:
+  format: "text"  # text, json, sarif, github
+  color: true
+  show_do_patterns: true
+  show_dont_patterns: true
+  show_fix_suggestions: true
+
+# CI/CD integration
+ci:
+  # Fail on errors (exit code 1)
+  fail_on_error: true
+  # Fail on warnings too
+  fail_on_warning: false
+  # GitHub Actions annotations
+  github_annotations: true
