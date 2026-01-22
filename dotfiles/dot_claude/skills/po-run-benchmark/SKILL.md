@@ -8,7 +8,7 @@ allowed-tools:
   - TodoWrite
 hooks:
   - event: SessionStart
-    command: "cd /Users/alexzh/local_safe_baackups && uv run python -c 'from orchestrator_db import init_db; init_db()'"
+    command: "cd $BENCHMARK_DIR && uv run python -c 'from orchestrator_db import init_db; init_db()'"
 ---
 
 # Parallel Orchestrator Benchmark Runner
@@ -30,7 +30,7 @@ When invoked, follow this process:
 ### 1. Initialize Benchmark Environment
 
 ```bash
-cd /Users/alexzh/local_safe_baackups
+cd $BENCHMARK_DIR
 uv run python -c "
 from benchmark.tasks import BENCHMARK_TASKS
 from benchmark.runner import BenchmarkRunner
@@ -46,13 +46,13 @@ print(f'Complexities: simple, medium, complex')
 
 **Full Benchmark:**
 ```bash
-cd /Users/alexzh/local_safe_baackups
+cd $BENCHMARK_DIR
 uv run python -m benchmark.cli run -v
 ```
 
 **Quick Benchmark:**
 ```bash
-cd /Users/alexzh/local_safe_baackups
+cd $BENCHMARK_DIR
 uv run python -m benchmark.cli run --quick -v
 ```
 

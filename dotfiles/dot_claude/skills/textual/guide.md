@@ -107,7 +107,10 @@ self.dismiss(result_data)
 
 **Modal Screens:**
 ```python
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
+from textual.widgets import Button, Static
 
 class ConfirmDialog(ModalScreen[bool]):
     """Type-safe modal that returns a boolean."""

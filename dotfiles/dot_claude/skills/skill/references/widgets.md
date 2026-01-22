@@ -8,6 +8,9 @@ Comprehensive examples of all built-in Textual widgets.
 
 Display static or dynamic text:
 ```python
+from textual.app import ComposeResult
+from textual.reactive import reactive
+from textual.widget import Widget
 from textual.widgets import Label
 
 # Simple label
@@ -73,6 +76,7 @@ def on_button_pressed(self, event: Button.Pressed) -> None:
 Single-line text input:
 ```python
 from textual.widgets import Input
+from textual.validation import Email
 
 # Basic input
 yield Input(placeholder="Enter text...", id="name")
@@ -501,6 +505,10 @@ yield UserCard("Alice Smith", "alice@example.com", "Admin")
 
 ### Form Layout
 ```python
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal
+from textual.widgets import Label, Input, Button
+
 def compose(self) -> ComposeResult:
     with Container(id="form"):
         yield Label("Registration Form")
@@ -514,6 +522,10 @@ def compose(self) -> ComposeResult:
 
 ### Dashboard Layout
 ```python
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal, Vertical
+from textual.widgets import Header, Footer, Label, Button, Static, DataTable
+
 def compose(self) -> ComposeResult:
     yield Header()
     with Container(id="dashboard"):

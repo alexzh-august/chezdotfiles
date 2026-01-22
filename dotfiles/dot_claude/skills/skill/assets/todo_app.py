@@ -126,7 +126,7 @@ class TodoApp(App):
         Binding("ctrl+n", "new_todo", "New Todo"),
         Binding("ctrl+d", "delete_todo", "Delete"),
         Binding("space", "toggle_todo", "Toggle"),
-        Binding("ctrl+c", "clear_completed", "Clear Completed"),
+        Binding("ctrl+shift+c", "clear_completed", "Clear Completed"),
         ("q", "quit", "Quit"),
     ]
 
@@ -215,7 +215,8 @@ class TodoApp(App):
     def action_clear_completed(self) -> None:
         """Clear all completed todos."""
         list_view = self.query_one("#todo-list", ListView)
-        for item in list_view.query(TodoItem):
+        items = list(list_view.query(TodoItem))
+        for item in items:
             if item.completed:
                 item.remove()
         self.update_stats()
