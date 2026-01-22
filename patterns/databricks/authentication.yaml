@@ -1,0 +1,578 @@
+# Databricks Authentication Code Pattern Detector
+# DO and DON'T patterns for authentication best practices
+# Based on: https://docs.databricks.com/llms.txt
+
+metadata:
+  name: databricks-authentication
+  version: "1.0.0"
+  description: Pattern detectors for Databricks authentication best practices
+  packages:
+    - databricks-sdk
+    - databricks-connect
+    - httpx
+
+# ============================================================================
+# AUTHENTICATION METHODS REFERENCE
+# ============================================================================
+#
+# | Method               | Use Case                    | Security Level |
+# |----------------------|-----------------------------|----------------|
+# | OAuth (Recommended)  | Interactive & external apps | Highest        |
+# | Service Principal    | CI/CD & production          | High           |
+# | PAT (Personal Token) | Development & testing       | Medium         |
+#
+# ============================================================================
+
+patterns:
+  # ============================================================================
+  # OAUTH PATTERNS (RECOMMENDED)
+  # ============================================================================
+
+  oauth_authentication:
+    description: Use OAuth for external clients and production
+    severity: warning
+
+    do:
+      - pattern: |
+          from databricks.sdk import WorkspaceClient
+          from databricks.sdk.config import Config
+
+          # OAuth with automatic browser flow
+          config = Config(
+              host="https://your-workspace.cloud.databricks.com",
+              auth_type="oauth-m2m",  # Machine-to-machine OAuth
+              client_id=os.environ["DATABRICKS_CLIENT_ID"],
+              client_secret=os.environ["DATABRICKS_CLIENT_SECRET"]
+          )
+          client = WorkspaceClient(config=config)
+        explanation: OAuth M2M is recommended for automated workflows
+
+      - pattern: |
+          # OAuth U2M (User-to-Machine) for interactive applications
+          from databricks.sdk import WorkspaceClient
+
+          client = WorkspaceClient(
+              host="https://your-workspace.cloud.databricks.com",
+              auth_type="oauth-u2m"  # Opens browser for consent
+          )
+        explanation: OAuth U2M provides secure interactive authentication
+
+      - pattern: |
+          # External OAuth for third-party applications
+          import httpx
+
+          async def get_oauth_token(
+              client_id: str,
+              client_secret: str,
+              workspace_url: str
+          ) -> str:
+              """Get OAuth token using client credentials flow."""
+              async with httpx.AsyncClient() as client:
+                  response = await client.post(
+                      f"{workspace_url}/oidc/v1/token",
+                      data={
+                          "grant_type": "client_credentials",
+                          "client_id": client_id,
+                          "client_secret": client_secret,
+                          "scope": "all-apis"
+                      }
+                  )
+                  response.raise_for_status()
+                  return response.json()["access_token"]
+        explanation: Use OAuth client credentials flow for service accounts
+
+    dont:
+      - pattern: |
+          # Don't hardcode OAuth credentials
+          config = Config(
+              client_id="abc123",           # BAD!
+              client_secret="secret456"     # BAD!
+          )
+        explanation: OAuth credentials should come from secure secret storage
+        anti_pattern_regex: 'client_(?:id|secret)\s*=\s*["\'][a-zA-Z0-9]+'
+
+  # ============================================================================
+  # SERVICE PRINCIPAL PATTERNS
+  # ============================================================================
+
+  service_principal:
+    description: Use service principals for production and CI/CD
+    severity: error
+
+    do:
+      - pattern: |
+          from databricks.sdk import WorkspaceClient
+          import os
+
+          # Service Principal with OAuth
+          client = WorkspaceClient(
+              host=os.environ["DATABRICKS_HOST"],
+              client_id=os.environ["AZURE_CLIENT_ID"],      # SP client ID
+              client_secret=os.environ["AZURE_CLIENT_SECRET"],  # SP secret
+              azure_tenant_id=os.environ["AZURE_TENANT_ID"]
+          )
+        explanation: Service principals provide identity for automated systems
+
+      - pattern: |
+          # Service Principal in GitHub Actions
+          # .github/workflows/deploy.yml
+          """
+          env:
+            DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+            DATABRICKS_CLIENT_ID: ${{ secrets.SP_CLIENT_ID }}
+            DATABRICKS_CLIENT_SECRET: ${{ secrets.SP_CLIENT_SECRET }}
+          """
+        explanation: Store SP credentials in CI/CD secrets, not code
+
+      - pattern: |
+          # Validate service principal permissions
+          def validate_sp_permissions(client: WorkspaceClient) -> bool:
+              """Verify service principal has required permissions."""
+              try:
+                  # Test basic access
+                  me = client.current_user.me()
+                  logger.info(f"Authenticated as: {me.user_name}")
+
+                  # Test catalog access
+                  catalogs = client.catalogs.list()
+                  logger.info(f"Accessible catalogs: {len(list(catalogs))}")
+
+                  return True
+              except Exception as e:
+                  logger.error(f"SP permission check failed: {e}")
+                  return False
+        explanation: Validate SP permissions at startup to fail fast
+
+    dont:
+      - pattern: |
+          # Don't use service principal tokens in development
+          # Use PAT for local development instead
+          export DATABRICKS_CLIENT_ID="production-sp-id"  # BAD for dev
+        explanation: Use PAT for development, SP for production only
+
+      - pattern: |
+          # Don't store SP secrets in config files
+          # databricks.cfg
+          """
+          [production]
+          client_secret = super-secret-value-123  # NEVER DO THIS
+          """
+        explanation: Config files may be committed to version control
+        anti_pattern_regex: 'client_secret\s*=\s*\S+'
+
+  # ============================================================================
+  # PERSONAL ACCESS TOKEN (PAT) PATTERNS
+  # ============================================================================
+
+  pat_authentication:
+    description: PAT patterns for development and testing
+    severity: warning
+
+    do:
+      - pattern: |
+          import os
+          from databricks.sdk import WorkspaceClient
+
+          # PAT from environment variable
+          client = WorkspaceClient(
+              host=os.environ["DATABRICKS_HOST"],
+              token=os.environ["DATABRICKS_TOKEN"]
+          )
+        explanation: Always use environment variables for PAT
+
+      - pattern: |
+          # Export PAT in shell profile (not committed)
+          # ~/.bashrc or ~/.zshrc (gitignored)
+          """
+          export DATABRICKS_HOST="https://your-workspace.cloud.databricks.com"
+          export DATABRICKS_TOKEN="dapi..."
+          """
+        explanation: Store PAT in shell profile, never in code
+
+      - pattern: |
+          # Unified auth with config file (gitignored)
+          # ~/.databrickscfg
+          """
+          [DEFAULT]
+          host = https://your-workspace.cloud.databricks.com
+          token = dapi...  # Only in gitignored files!
+          """
+
+          # Code just uses defaults
+          from databricks.sdk import WorkspaceClient
+          client = WorkspaceClient()  # Reads from ~/.databrickscfg
+        explanation: Databricks CLI config provides seamless auth
+
+      - pattern: |
+          # PAT rotation helper
+          from datetime import datetime, timedelta
+
+          def check_token_expiry(client: WorkspaceClient) -> None:
+              """Warn if PAT is expiring soon."""
+              # Get token info
+              tokens = client.tokens.list()
+              for token in tokens:
+                  if token.expiry_time:
+                      expiry = datetime.fromtimestamp(token.expiry_time / 1000)
+                      days_until_expiry = (expiry - datetime.now()).days
+                      if days_until_expiry < 30:
+                          logger.warning(
+                              f"Token '{token.comment}' expires in {days_until_expiry} days"
+                          )
+        explanation: Monitor and rotate PATs before they expire
+
+    dont:
+      - pattern: |
+          # NEVER hardcode PAT in source code
+          client = WorkspaceClient(
+              host="https://workspace.cloud.databricks.com",
+              token="dapi1234567890abcdef"  # SECURITY VULNERABILITY!
+          )
+        explanation: Hardcoded tokens are exposed in version control
+        anti_pattern_regex: 'token\s*=\s*["\']dapi[a-zA-Z0-9]+'
+
+      - pattern: |
+          # Don't commit .databrickscfg or .env files
+          # .gitignore should include:
+          # .databrickscfg
+          # .env
+          # *.pem
+        explanation: Credential files must be in .gitignore
+
+      - pattern: |
+          # Don't use PAT in production - use Service Principal
+          # Production Dockerfile
+          """
+          ENV DATABRICKS_TOKEN=dapi...  # BAD: Use SP instead
+          """
+        explanation: Production systems should use Service Principals
+        anti_pattern_regex: 'ENV\s+DATABRICKS_TOKEN'
+
+      - pattern: |
+          # Don't log or print tokens
+          print(f"Using token: {os.environ['DATABRICKS_TOKEN']}")  # BAD!
+          logger.info(f"Token: {token}")  # BAD!
+        explanation: Tokens in logs can be captured by attackers
+        anti_pattern_regex: '(?:print|log|info|debug|warn|error).*(?:token|TOKEN|secret|SECRET)'
+
+  # ============================================================================
+  # CREDENTIAL MANAGEMENT PATTERNS
+  # ============================================================================
+
+  credential_management:
+    description: Secure credential storage and retrieval
+    severity: error
+
+    do:
+      - pattern: |
+          # Use secret managers in production
+          import boto3
+          from botocore.exceptions import ClientError
+
+          def get_databricks_token_from_secrets_manager(secret_name: str) -> str:
+              """Retrieve Databricks token from AWS Secrets Manager."""
+              client = boto3.client("secretsmanager")
+              try:
+                  response = client.get_secret_value(SecretId=secret_name)
+                  return response["SecretString"]
+              except ClientError as e:
+                  raise RuntimeError(f"Failed to retrieve secret: {e}")
+        explanation: Use cloud secret managers for production credentials
+
+      - pattern: |
+          # Azure Key Vault integration
+          from azure.keyvault.secrets import SecretClient
+          from azure.identity import DefaultAzureCredential
+
+          def get_databricks_credentials() -> tuple[str, str]:
+              """Get Databricks credentials from Azure Key Vault."""
+              credential = DefaultAzureCredential()
+              client = SecretClient(
+                  vault_url="https://your-vault.vault.azure.net/",
+                  credential=credential
+              )
+              return (
+                  client.get_secret("databricks-host").value,
+                  client.get_secret("databricks-token").value
+              )
+        explanation: Azure Key Vault provides secure secret storage
+
+      - pattern: |
+          # HashiCorp Vault integration
+          import hvac
+
+          def get_databricks_token() -> str:
+              """Get token from HashiCorp Vault."""
+              client = hvac.Client(url=os.environ["VAULT_ADDR"])
+              client.token = os.environ["VAULT_TOKEN"]
+
+              secret = client.secrets.kv.v2.read_secret_version(
+                  path="databricks/credentials"
+              )
+              return secret["data"]["data"]["token"]
+        explanation: Vault provides centralized secret management
+
+      - pattern: |
+          # Credential validation on startup
+          from databricks.sdk import WorkspaceClient
+          from databricks.sdk.errors import AuthError
+
+          def validate_credentials() -> WorkspaceClient:
+              """Validate credentials and return authenticated client."""
+              try:
+                  client = WorkspaceClient()  # Uses default auth chain
+                  # Test authentication
+                  client.current_user.me()
+                  return client
+              except AuthError as e:
+                  raise RuntimeError(
+                      "Databricks authentication failed. Check your credentials. "
+                      f"Error: {e}"
+                  )
+        explanation: Validate credentials at startup to fail fast
+
+    dont:
+      - pattern: |
+          # Don't store credentials in code or config files
+          DATABRICKS_TOKEN = "dapi1234567890"  # NEVER!
+
+          config = {
+              "token": "dapi1234567890"  # NEVER!
+          }
+        explanation: Credentials in code are a critical security vulnerability
+        anti_pattern_regex: '(?:DATABRICKS_TOKEN|token)\s*=\s*["\']dapi'
+
+      - pattern: |
+          # Don't pass credentials in URLs
+          url = f"https://dapi123:@workspace.cloud.databricks.com/api/2.0"
+        explanation: Credentials in URLs are logged and exposed
+        anti_pattern_regex: 'https?://dapi[a-zA-Z0-9]+:?@'
+
+# ============================================================================
+# CODE GENERATORS
+# ============================================================================
+
+generators:
+  secure_auth_client:
+    description: Generate a secure Databricks authentication wrapper
+    template: |
+      """Secure Databricks Authentication Wrapper.
+
+      Provides secure credential management with support for multiple auth methods.
+      """
+      from dataclasses import dataclass
+      from enum import Enum
+      from typing import Optional
+      import os
+      import logging
+
+      from databricks.sdk import WorkspaceClient
+      from databricks.sdk.config import Config
+      from databricks.sdk.errors import AuthError
+
+      logger = logging.getLogger(__name__)
+
+
+      class AuthMethod(Enum):
+          """Supported authentication methods."""
+          PAT = "pat"                    # Personal Access Token
+          OAUTH_M2M = "oauth-m2m"        # OAuth Machine-to-Machine
+          OAUTH_U2M = "oauth-u2m"        # OAuth User-to-Machine
+          SERVICE_PRINCIPAL = "sp"       # Service Principal
+          DEFAULT = "default"            # Use SDK default chain
+
+
+      @dataclass
+      class AuthConfig:
+          """Authentication configuration."""
+          host: str
+          method: AuthMethod = AuthMethod.DEFAULT
+          token: Optional[str] = None
+          client_id: Optional[str] = None
+          client_secret: Optional[str] = None
+          tenant_id: Optional[str] = None
+
+          @classmethod
+          def from_env(cls, method: AuthMethod = AuthMethod.DEFAULT) -> "AuthConfig":
+              """Create config from environment variables."""
+              return cls(
+                  host=os.environ.get("DATABRICKS_HOST", ""),
+                  method=method,
+                  token=os.environ.get("DATABRICKS_TOKEN"),
+                  client_id=os.environ.get("DATABRICKS_CLIENT_ID"),
+                  client_secret=os.environ.get("DATABRICKS_CLIENT_SECRET"),
+                  tenant_id=os.environ.get("AZURE_TENANT_ID"),
+              )
+
+
+      class SecureDatabricksClient:
+          """Secure wrapper for Databricks SDK with credential validation."""
+
+          def __init__(self, config: Optional[AuthConfig] = None):
+              """Initialize with optional config (uses env vars if not provided)."""
+              self.config = config or AuthConfig.from_env()
+              self._client: Optional[WorkspaceClient] = None
+              self._validated = False
+
+          def _create_client(self) -> WorkspaceClient:
+              """Create WorkspaceClient based on auth method."""
+              if self.config.method == AuthMethod.PAT:
+                  if not self.config.token:
+                      raise ValueError("PAT auth requires DATABRICKS_TOKEN")
+                  return WorkspaceClient(
+                      host=self.config.host,
+                      token=self.config.token
+                  )
+
+              elif self.config.method == AuthMethod.OAUTH_M2M:
+                  if not self.config.client_id or not self.config.client_secret:
+                      raise ValueError("OAuth M2M requires client_id and client_secret")
+                  sdk_config = Config(
+                      host=self.config.host,
+                      auth_type="oauth-m2m",
+                      client_id=self.config.client_id,
+                      client_secret=self.config.client_secret
+                  )
+                  return WorkspaceClient(config=sdk_config)
+
+              elif self.config.method == AuthMethod.OAUTH_U2M:
+                  sdk_config = Config(
+                      host=self.config.host,
+                      auth_type="oauth-u2m"
+                  )
+                  return WorkspaceClient(config=sdk_config)
+
+              elif self.config.method == AuthMethod.SERVICE_PRINCIPAL:
+                  return WorkspaceClient(
+                      host=self.config.host,
+                      client_id=self.config.client_id,
+                      client_secret=self.config.client_secret,
+                      azure_tenant_id=self.config.tenant_id
+                  )
+
+              else:  # DEFAULT - use SDK auth chain
+                  return WorkspaceClient()
+
+          def validate(self) -> bool:
+              """Validate credentials by making a test API call."""
+              try:
+                  client = self.get_client()
+                  me = client.current_user.me()
+                  logger.info(f"Authenticated as: {me.user_name}")
+                  self._validated = True
+                  return True
+              except AuthError as e:
+                  logger.error(f"Authentication failed: {e}")
+                  return False
+              except Exception as e:
+                  logger.error(f"Credential validation error: {e}")
+                  return False
+
+          def get_client(self) -> WorkspaceClient:
+              """Get authenticated WorkspaceClient (lazy initialization)."""
+              if self._client is None:
+                  self._client = self._create_client()
+              return self._client
+
+          @property
+          def is_validated(self) -> bool:
+              """Check if credentials have been validated."""
+              return self._validated
+
+
+      def get_authenticated_client(
+          method: AuthMethod = AuthMethod.DEFAULT,
+          validate: bool = True
+      ) -> WorkspaceClient:
+          """Factory function to get an authenticated Databricks client.
+
+          Args:
+              method: Authentication method to use
+              validate: Whether to validate credentials on creation
+
+          Returns:
+              Authenticated WorkspaceClient
+
+          Raises:
+              RuntimeError: If validation fails
+          """
+          config = AuthConfig.from_env(method)
+          secure_client = SecureDatabricksClient(config)
+
+          if validate and not secure_client.validate():
+              raise RuntimeError(
+                  "Failed to authenticate to Databricks. "
+                  "Check your credentials and permissions."
+              )
+
+          return secure_client.get_client()
+
+  gitignore_template:
+    description: Generate .gitignore entries for Databricks credentials
+    template: |
+      # Databricks credentials - NEVER commit these!
+      .databrickscfg
+      .databricks-connect
+      .netrc
+
+      # Environment files with secrets
+      .env
+      .env.local
+      .env.*.local
+      *.env
+
+      # Key files
+      *.pem
+      *.key
+      *_rsa
+      *_dsa
+      *_ecdsa
+      *_ed25519
+
+      # Token files
+      token.txt
+      tokens.json
+      credentials.json
+      secrets.yaml
+      secrets.json
+
+# ============================================================================
+# REFACTORING RULES
+# ============================================================================
+
+refactors:
+  extract_hardcoded_tokens:
+    description: Move hardcoded tokens to environment variables
+    trigger: 'token\s*=\s*["\']dapi[a-zA-Z0-9]+'
+    fix: |
+      # Before:
+      # token="dapi1234567890"
+
+      # After:
+      import os
+      token = os.environ["DATABRICKS_TOKEN"]
+
+  add_credential_validation:
+    description: Add credential validation at startup
+    trigger: 'WorkspaceClient\(\)'
+    fix: |
+      # Before:
+      # client = WorkspaceClient()
+
+      # After:
+      client = WorkspaceClient()
+      try:
+          client.current_user.me()
+      except AuthError as e:
+          raise RuntimeError(f"Auth failed: {e}")
+
+  use_secret_manager:
+    description: Replace env vars with secret manager in production
+    trigger: 'os\.environ\[.*(TOKEN|SECRET).*\]'
+    fix: |
+      # Before:
+      # token = os.environ["DATABRICKS_TOKEN"]
+
+      # After (for production):
+      from your_app.secrets import get_secret
+      token = get_secret("databricks/token")
