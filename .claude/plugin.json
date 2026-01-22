@@ -1,0 +1,127 @@
+{
+  "$schema": "https://claude.ai/schemas/claude-code-plugin.json",
+  "name": "pr-review-toolkit",
+  "displayName": "PR Review Toolkit",
+  "version": "1.0.0",
+  "description": "Comprehensive PR review agents specializing in comments, tests, error handling, type design, code quality, and code simplification",
+  "author": "anthropics",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropics/claude-code"
+  },
+  "homepage": "https://www.claudepluginhub.com/plugins/anthropics-pr-review-toolkit-plugins-pr-review-toolkit",
+  "keywords": [
+    "pr-review",
+    "code-review",
+    "quality",
+    "testing",
+    "documentation",
+    "agents",
+    "multi-agent"
+  ],
+  "engines": {
+    "claude-code": ">=1.0.0"
+  },
+  "activationEvents": [
+    "onCommand:pr-review",
+    "onCommand:pr-review-quick"
+  ],
+  "contributes": {
+    "agents": [
+      {
+        "id": "pr-review-comments",
+        "name": "Comments Review Agent",
+        "description": "Reviews PR for comment quality, documentation, and inline explanations",
+        "promptFile": "agents/comments-agent.md",
+        "icon": "comment"
+      },
+      {
+        "id": "pr-review-tests",
+        "name": "Tests Review Agent",
+        "description": "Reviews PR for test coverage, test quality, and testing best practices",
+        "promptFile": "agents/tests-agent.md",
+        "icon": "beaker"
+      },
+      {
+        "id": "pr-review-errors",
+        "name": "Error Handling Review Agent",
+        "description": "Reviews PR for error handling patterns, edge cases, and failure modes",
+        "promptFile": "agents/errors-agent.md",
+        "icon": "alert"
+      },
+      {
+        "id": "pr-review-types",
+        "name": "Type Design Review Agent",
+        "description": "Reviews PR for type design, type safety, and interface definitions",
+        "promptFile": "agents/types-agent.md",
+        "icon": "symbol-interface"
+      },
+      {
+        "id": "pr-review-quality",
+        "name": "Code Quality Review Agent",
+        "description": "Reviews PR for code quality, maintainability, and best practices",
+        "promptFile": "agents/quality-agent.md",
+        "icon": "star"
+      },
+      {
+        "id": "pr-review-simplify",
+        "name": "Simplification Review Agent",
+        "description": "Reviews PR for opportunities to simplify and reduce complexity",
+        "promptFile": "agents/simplify-agent.md",
+        "icon": "fold"
+      }
+    ],
+    "commands": [
+      {
+        "id": "pr-review",
+        "name": "PR Review",
+        "description": "Run comprehensive PR review with all agents",
+        "promptFile": "commands/pr-review.md"
+      },
+      {
+        "id": "pr-review-quick",
+        "name": "Quick PR Review",
+        "description": "Run quick PR review focusing on critical issues",
+        "promptFile": "commands/pr-review-quick.md"
+      }
+    ]
+  },
+  "permissions": {
+    "tools": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash",
+      "Task",
+      "WebFetch"
+    ],
+    "bashCommands": [
+      "git *",
+      "gh *"
+    ]
+  },
+  "configuration": {
+    "pr-review-toolkit.parallelAgents": {
+      "type": "boolean",
+      "default": true,
+      "description": "Run review agents in parallel for faster results"
+    },
+    "pr-review-toolkit.includePositiveObservations": {
+      "type": "boolean",
+      "default": true,
+      "description": "Include positive feedback in review reports"
+    },
+    "pr-review-toolkit.maxIssuesPerAgent": {
+      "type": "number",
+      "default": 20,
+      "description": "Maximum number of issues to report per agent"
+    },
+    "pr-review-toolkit.severityThreshold": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low"],
+      "default": "low",
+      "description": "Minimum severity level to include in reports"
+    }
+  }
+}

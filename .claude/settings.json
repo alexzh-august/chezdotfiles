@@ -1,0 +1,59 @@
+{
+  "$schema": "https://claude.ai/schemas/claude-code-settings.json",
+  "name": "pr-review-toolkit",
+  "version": "1.0.0",
+  "description": "Comprehensive PR review agents specializing in comments, tests, error handling, type design, code quality, and code simplification",
+  "author": "anthropics",
+  "repository": "anthropics/claude-code",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "WebFetch",
+      "Task"
+    ],
+    "deny": []
+  },
+  "agents": {
+    "pr-review-comments": {
+      "description": "Reviews PR for comment quality, documentation, and inline explanations",
+      "file": "agents/comments-agent.md"
+    },
+    "pr-review-tests": {
+      "description": "Reviews PR for test coverage, test quality, and testing best practices",
+      "file": "agents/tests-agent.md"
+    },
+    "pr-review-errors": {
+      "description": "Reviews PR for error handling patterns, edge cases, and failure modes",
+      "file": "agents/errors-agent.md"
+    },
+    "pr-review-types": {
+      "description": "Reviews PR for type design, type safety, and interface definitions",
+      "file": "agents/types-agent.md"
+    },
+    "pr-review-quality": {
+      "description": "Reviews PR for code quality, maintainability, and best practices",
+      "file": "agents/quality-agent.md"
+    },
+    "pr-review-simplify": {
+      "description": "Reviews PR for opportunities to simplify and reduce complexity",
+      "file": "agents/simplify-agent.md"
+    }
+  },
+  "commands": {
+    "pr-review": {
+      "description": "Run comprehensive PR review with all agents",
+      "file": "commands/pr-review.md"
+    },
+    "pr-review-quick": {
+      "description": "Run quick PR review focusing on critical issues",
+      "file": "commands/pr-review-quick.md"
+    }
+  },
+  "hooks": {
+    "PreToolUse": []
+  }
+}
