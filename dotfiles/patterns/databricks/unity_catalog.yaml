@@ -1,0 +1,433 @@
+# Databricks Unity Catalog Code Pattern Detector
+# DO and DON'T patterns for Unity Catalog operations
+# Based on: https://docs.databricks.com/llms.txt
+
+metadata:
+  name: databricks-unity-catalog
+  version: "1.0.0"
+  description: Pattern detectors for Databricks Unity Catalog best practices
+  packages:
+    - databricks-sdk
+    - pyspark
+    - delta-spark
+
+patterns:
+  # ============================================================================
+  # NAMESPACE PATTERNS
+  # ============================================================================
+
+  namespace_convention:
+    description: Use three-level namespace for all table references
+    severity: error
+
+    do:
+      - pattern: |
+          # Always use fully qualified names: catalog.schema.table
+          df = spark.table("my_catalog.my_schema.my_table")
+        explanation: Explicit three-level namespace prevents ambiguity
+
+      - pattern: |
+          # Use variables for namespace components
+          CATALOG = "production_catalog"
+          SCHEMA = "analytics"
+          TABLE = "user_events"
+
+          full_path = f"{CATALOG}.{SCHEMA}.{TABLE}"
+          df = spark.table(full_path)
+        explanation: Variables make namespace management maintainable
+
+      - pattern: |
+          # SQL with explicit namespace
+          spark.sql("""
+              SELECT * FROM my_catalog.my_schema.my_table
+              WHERE event_date >= '2024-01-01'
+          """)
+        explanation: Always qualify table names in SQL
+
+    dont:
+      - pattern: |
+          # Never use unqualified table names
+          df = spark.table("my_table")  # BAD: ambiguous
+        explanation: Unqualified names depend on implicit catalog/schema context
+        anti_pattern_regex: 'spark\.table\s*\(\s*["\'][^.]+["\']\s*\)'
+
+      - pattern: |
+          # Don't rely on USE statements in production
+          spark.sql("USE CATALOG my_catalog")
+          spark.sql("USE SCHEMA my_schema")
+          df = spark.table("my_table")  # BAD: implicit context
+        explanation: USE statements create hidden state dependencies
+        anti_pattern_regex: 'USE\s+(CATALOG|SCHEMA)\s+\w+'
+
+  special_characters:
+    description: Properly escape identifiers with special characters
+    severity: error
+
+    do:
+      - pattern: |
+          # Backtick-escape special characters in identifiers
+          spark.sql("""
+              SELECT * FROM my_catalog.my_schema.`special-table-name`
+          """)
+        explanation: Backticks required for hyphens, spaces, or special chars
+
+      - pattern: |
+          # Use backticks for reserved words
+          spark.sql("""
+              SELECT `date`, `table`, `schema`
+              FROM catalog.schema.`order-history`
+          """)
+        explanation: Reserved words must be escaped
+
+    dont:
+      - pattern: |
+          # Don't use unescaped special characters
+          spark.sql("SELECT * FROM catalog.schema.special-table")  # BAD
+        explanation: Hyphens will be interpreted as subtraction
+        anti_pattern_regex: 'FROM\s+\w+\.\w+\.[a-zA-Z0-9]+[-][a-zA-Z0-9]+'
+
+  # ============================================================================
+  # CATALOG OPERATIONS
+  # ============================================================================
+
+  catalog_listing:
+    description: Use proper methods for catalog introspection
+    severity: warning
+
+    do:
+      - pattern: |
+          # List catalogs using SQL
+          catalogs = spark.sql("SHOW CATALOGS").collect()
+          for catalog in catalogs:
+              print(catalog.catalog)
+        explanation: SHOW CATALOGS returns all accessible catalogs
+
+      - pattern: |
+          # List schemas within a catalog
+          schemas = spark.sql("SHOW SCHEMAS IN my_catalog").collect()
+        explanation: Explicitly specify catalog when listing schemas
+
+      - pattern: |
+          # List tables with full context
+          tables = spark.sql("""
+              SHOW TABLES IN my_catalog.my_schema
+          """).collect()
+        explanation: Always provide catalog.schema for table listing
+
+      - pattern: |
+          # Describe table for metadata
+          schema_info = spark.sql("""
+              DESCRIBE TABLE my_catalog.my_schema.my_table
+          """)
+        explanation: DESCRIBE gives column names, types, and comments
+
+    dont:
+      - pattern: |
+          # Don't use SHOW TABLES without context
+          spark.sql("SHOW TABLES")  # BAD: uses implicit schema
+        explanation: Results depend on current schema context
+        anti_pattern_regex: 'SHOW\s+TABLES\s*(?!\s+IN)'
+
+  # ============================================================================
+  # PERMISSION PATTERNS
+  # ============================================================================
+
+  permission_handling:
+    description: Handle Unity Catalog permissions gracefully
+    severity: error
+
+    do:
+      - pattern: |
+          from pyspark.sql.utils import AnalysisException
+
+          def safe_read_table(table_path: str):
+              """Read table with permission error handling."""
+              try:
+                  return spark.table(table_path)
+              except AnalysisException as e:
+                  if "PERMISSION_DENIED" in str(e) or "ACCESS_DENIED" in str(e):
+                      raise PermissionError(
+                          f"No read access to {table_path}. "
+                          "Request access via Unity Catalog."
+                      ) from e
+                  raise
+        explanation: Catch permission errors and provide actionable guidance
+
+      - pattern: |
+          # Check permissions before operations
+          def has_table_access(catalog: str, schema: str, table: str) -> bool:
+              """Check if current user can access a table."""
+              try:
+                  spark.sql(f"""
+                      DESCRIBE TABLE {catalog}.{schema}.{table}
+                  """)
+                  return True
+              except Exception:
+                  return False
+        explanation: Pre-flight permission checks prevent runtime failures
+
+    dont:
+      - pattern: |
+          # Don't ignore permission errors
+          try:
+              df = spark.table("catalog.schema.table")
+          except:
+              pass  # BAD: swallows permission errors
+        explanation: Silent failures hide authorization issues
+        anti_pattern_regex: 'except:\s*\n\s*pass'
+
+  # ============================================================================
+  # DATA GOVERNANCE
+  # ============================================================================
+
+  governance_tags:
+    description: Use Unity Catalog governance features
+    severity: info
+
+    do:
+      - pattern: |
+          # Set table properties for governance
+          spark.sql("""
+              ALTER TABLE my_catalog.my_schema.my_table
+              SET TBLPROPERTIES (
+                  'delta.columnMapping.mode' = 'name',
+                  'classification' = 'sensitive',
+                  'owner' = 'data-team@company.com'
+              )
+          """)
+        explanation: Table properties enable governance and discovery
+
+      - pattern: |
+          # Add column comments for documentation
+          spark.sql("""
+              ALTER TABLE my_catalog.my_schema.my_table
+              ALTER COLUMN user_id COMMENT 'Unique user identifier (PII)'
+          """)
+        explanation: Column comments improve data understanding
+
+      - pattern: |
+          # Use data classification tags
+          spark.sql("""
+              ALTER TABLE my_catalog.my_schema.users
+              SET TAGS ('pii' = 'true', 'retention_days' = '365')
+          """)
+        explanation: Tags enable automated governance policies
+
+# ============================================================================
+# CODE GENERATORS
+# ============================================================================
+
+generators:
+  unity_catalog_reader:
+    description: Generate a safe Unity Catalog table reader
+    template: |
+      from typing import Optional
+      from pyspark.sql import DataFrame, SparkSession
+      from pyspark.sql.utils import AnalysisException
+
+      class UnityCatalogReader:
+          """Safe reader for Unity Catalog tables with permission handling."""
+
+          def __init__(self, spark: SparkSession, default_catalog: str):
+              self.spark = spark
+              self.default_catalog = default_catalog
+
+          def read_table(
+              self,
+              table: str,
+              schema: str,
+              catalog: Optional[str] = None
+          ) -> DataFrame:
+              """Read a table with full namespace qualification.
+
+              Args:
+                  table: Table name
+                  schema: Schema name
+                  catalog: Catalog name (uses default if not provided)
+
+              Returns:
+                  DataFrame with table contents
+
+              Raises:
+                  PermissionError: If access is denied
+                  ValueError: If table doesn't exist
+              """
+              catalog = catalog or self.default_catalog
+              full_path = f"{catalog}.{schema}.{table}"
+
+              try:
+                  return self.spark.table(full_path)
+              except AnalysisException as e:
+                  error_msg = str(e).upper()
+                  if "PERMISSION" in error_msg or "ACCESS" in error_msg:
+                      raise PermissionError(
+                          f"Access denied to {full_path}"
+                      ) from e
+                  if "NOT_FOUND" in error_msg or "does not exist" in str(e):
+                      raise ValueError(
+                          f"Table {full_path} does not exist"
+                      ) from e
+                  raise
+
+          def list_tables(self, schema: str, catalog: Optional[str] = None) -> list:
+              """List all accessible tables in a schema.
+
+              Uses identifier validation and escaping to prevent SQL injection.
+              Unity Catalog identifiers must be validated before use in SQL.
+              """
+              catalog = catalog or self.default_catalog
+
+              # Validate identifiers to prevent SQL injection
+              if not self._is_valid_identifier(catalog):
+                  raise ValueError(f"Invalid catalog identifier: {catalog}")
+              if not self._is_valid_identifier(schema):
+                  raise ValueError(f"Invalid schema identifier: {schema}")
+
+              # Escape identifiers with backticks for safe SQL construction
+              safe_catalog = self._escape_identifier(catalog)
+              safe_schema = self._escape_identifier(schema)
+
+              result = self.spark.sql(f"SHOW TABLES IN {safe_catalog}.{safe_schema}")
+              return [row.tableName for row in result.collect()]
+
+          def _is_valid_identifier(self, name: str) -> bool:
+              """Validate Unity Catalog identifier to prevent SQL injection.
+
+              Valid identifiers:
+              - 1-255 characters
+              - Alphanumeric, underscores, or backtick-escaped
+              - Cannot start with underscore (Unity Catalog restriction)
+              """
+              import re
+              if not name or len(name) > 255:
+                  return False
+              # Allow alphanumeric, underscores, hyphens (will be escaped)
+              # Reject dangerous characters that could break out of identifiers
+              if re.search(r'[;\'"\\`\x00]', name):
+                  return False
+              return True
+
+          def _escape_identifier(self, name: str) -> str:
+              """Escape identifier with backticks for safe SQL use.
+
+              Backtick escaping is the standard way to handle special
+              characters in Unity Catalog identifiers.
+              """
+              # Remove any existing backticks and wrap in backticks
+              clean_name = name.replace('`', '')
+              return f"`{clean_name}`"
+
+  namespace_validator:
+    description: Generate a namespace validation utility
+    template: |
+      import re
+      from dataclasses import dataclass
+      from typing import Optional, Tuple
+
+      @dataclass
+      class TableReference:
+          """Parsed Unity Catalog table reference."""
+          catalog: str
+          schema: str
+          table: str
+
+          @property
+          def full_path(self) -> str:
+              return f"{self.catalog}.{self.schema}.{self.table}"
+
+          def escaped(self) -> str:
+              """Return path with special characters escaped."""
+              def escape(name: str) -> str:
+                  if re.search(r'[^a-zA-Z0-9_]', name) or name.upper() in RESERVED_WORDS:
+                      return f"`{name}`"
+                  return name
+              return f"{escape(self.catalog)}.{escape(self.schema)}.{escape(self.table)}"
+
+      RESERVED_WORDS = {
+          'DATE', 'TABLE', 'SCHEMA', 'CATALOG', 'DATABASE',
+          'SELECT', 'FROM', 'WHERE', 'ORDER', 'GROUP', 'BY'
+      }
+
+      def parse_table_reference(
+          ref: str,
+          default_catalog: Optional[str] = None,
+          default_schema: Optional[str] = None
+      ) -> TableReference:
+          """Parse a table reference into components.
+
+          Args:
+              ref: Table reference (can be 1, 2, or 3 parts)
+              default_catalog: Default catalog if not specified
+              default_schema: Default schema if not specified
+
+          Returns:
+              TableReference with all three components
+
+          Raises:
+              ValueError: If reference is invalid or missing required defaults
+          """
+          # Handle backtick-escaped identifiers
+          pattern = r'`[^`]+`|[^.`]+'
+          parts = re.findall(pattern, ref)
+          parts = [p.strip('`') for p in parts]
+
+          if len(parts) == 3:
+              return TableReference(parts[0], parts[1], parts[2])
+          elif len(parts) == 2:
+              if default_catalog is None:
+                  raise ValueError(
+                      f"Two-part reference '{ref}' requires default_catalog"
+                  )
+              return TableReference(default_catalog, parts[0], parts[1])
+          elif len(parts) == 1:
+              if default_catalog is None or default_schema is None:
+                  raise ValueError(
+                      f"One-part reference '{ref}' requires defaults"
+                  )
+              return TableReference(default_catalog, default_schema, parts[0])
+          else:
+              raise ValueError(f"Invalid table reference: {ref}")
+
+      def validate_identifier(name: str) -> Tuple[bool, Optional[str]]:
+          """Validate a Unity Catalog identifier.
+
+          Returns:
+              Tuple of (is_valid, error_message)
+          """
+          if not name:
+              return False, "Identifier cannot be empty"
+          if len(name) > 255:
+              return False, "Identifier exceeds 255 character limit"
+          if name.startswith('_'):
+              return False, "Identifier cannot start with underscore"
+          return True, None
+
+# ============================================================================
+# REFACTORING RULES
+# ============================================================================
+
+refactors:
+  qualify_table_references:
+    description: Add full namespace to unqualified table references
+    trigger: 'spark\.table\s*\(\s*["\'][^.]+["\']\s*\)'
+    fix: |
+      # Before: spark.table("users")
+      # After:  spark.table("my_catalog.my_schema.users")
+
+      # Automated fix requires catalog/schema context
+      # Use configuration or environment variables:
+      CATALOG = os.environ.get("DATABRICKS_CATALOG", "main")
+      SCHEMA = os.environ.get("DATABRICKS_SCHEMA", "default")
+
+  add_permission_handling:
+    description: Wrap table reads in permission-aware try/except
+    trigger: 'spark\.table\s*\([^)]+\)(?!\s*except)'
+    fix: |
+      # Wrap in try/except with specific permission handling
+      try:
+          df = spark.table("catalog.schema.table")
+      except AnalysisException as e:
+          if "PERMISSION" in str(e).upper():
+              logger.error(f"Permission denied: {e}")
+              raise
+          raise

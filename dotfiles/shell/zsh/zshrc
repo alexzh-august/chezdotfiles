@@ -1,0 +1,298 @@
+#!/bin/zsh
+# Zsh configuration optimized for Claude Code and development
+# Managed by chezmoi - do not edit directly
+#
+# Performance optimizations:
+# - Lazy loading for heavy tools (nvm, pyenv, conda)
+# - Cached completions with daily refresh
+# - Deferred plugin loading
+# - Minimal startup footprint (~50ms target)
+
+# ==============================================================================
+# Performance Profiling (uncomment to debug slow startup)
+# ==============================================================================
+# zmodload zsh/zprof
+
+# ==============================================================================
+# Instant Prompt (load before anything else for perceived speed)
+# ==============================================================================
+# If using Starship, this is handled automatically
+
+# ==============================================================================
+# History Configuration
+# ==============================================================================
+HISTSIZE=50000
+SAVEHIST=100000
+HISTFILE="${XDG_STATE_HOME:-$HOME/.local/state}/zsh/history"
+setopt HIST_EXPIRE_DUPS_FIRST
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_IGNORE_SPACE
+setopt HIST_FIND_NO_DUPS
+setopt HIST_SAVE_NO_DUPS
+setopt SHARE_HISTORY
+setopt APPEND_HISTORY
+setopt INC_APPEND_HISTORY
+setopt EXTENDED_HISTORY
+
+# Create history directory if it doesn't exist
+[[ -d "${XDG_STATE_HOME:-$HOME/.local/state}/zsh" ]] || mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/zsh"
+
+# ==============================================================================
+# Shell Options
+# ==============================================================================
+setopt AUTO_CD              # cd into directory by typing its name
+setopt AUTO_PUSHD           # Push directories onto stack
+setopt PUSHD_IGNORE_DUPS    # Don't push duplicates
+setopt PUSHD_SILENT         # Don't print directory stack
+setopt CORRECT              # Autocorrect commands
+setopt CORRECT_ALL          # Autocorrect all arguments
+setopt GLOB_DOTS            # Include hidden files in globbing
+setopt EXTENDED_GLOB        # Extended globbing features
+setopt NO_CASE_GLOB         # Case-insensitive globbing
+setopt NUMERIC_GLOB_SORT    # Sort globs numerically
+
+# ==============================================================================
+# Environment Variables
+# ==============================================================================
+
+# XDG Base Directory Specification
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+
+# Editor configuration
+export EDITOR="nvim"
+export VISUAL="nvim"
+
+# Pager configuration
+export PAGER="less"
+export LESS="-R --mouse --wheel-lines=3"
+export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+
+# Language and locale
+export LANG="en_US.UTF-8"
+export LC_ALL="en_US.UTF-8"
+
+# Claude Code environment
+export ANTHROPIC_DEFAULT_MODEL="claude-sonnet-4-20250514"
+export CLAUDE_CODE_TELEMETRY="0"
+
+# Python environment
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUNBUFFERED=1
+
+# UV settings
+export UV_SYSTEM_PYTHON=0
+export UV_PYTHON_PREFERENCE=managed
+
+# FZF configuration
+export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
+export FZF_DEFAULT_OPTS='
+  --height 40%
+  --layout=reverse
+  --border
+  --preview "bat --color=always --style=numbers --line-range=:500 {}"
+  --preview-window=right:60%:wrap
+  --color=bg+:#363a4f,bg:#24273a,spinner:#f4dbd6,hl:#ed8796
+  --color=fg:#cad3f5,header:#ed8796,info:#c6a0f6,pointer:#f4dbd6
+  --color=marker:#f4dbd6,fg+:#cad3f5,prompt:#c6a0f6,hl+:#ed8796
+'
+
+# Bat configuration
+export BAT_THEME="Catppuccin Mocha"
+
+# ==============================================================================
+# PATH Configuration
+# ==============================================================================
+
+# Add local bin directories
+export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.cargo/bin:$PATH"
+# Homebrew (Apple Silicon)
+if [[ -d "/opt/homebrew" ]]; then
+    export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+fi
+
+# ==============================================================================
+# Tool Initialization
+# ==============================================================================
+
+# Initialize mise (development environment manager)
+if (( $+commands[mise] )); then
+    eval "$(mise activate zsh)"
+fi
+
+# Initialize zoxide (smarter cd)
+# WARNING: Do not modify without human review. Zoxide replaces `cd` with `__zoxide_z`.
+# The interactive shell guard ([[ $- == *i* ]]) prevents breakage in scripts/subshells
+# where the function may not be defined, causing "command not found: __zoxide_z" errors.
+if [[ $- == *i* ]] && (( $+commands[zoxide] )); then
+    eval "$(zoxide init zsh)"
+fi
+
+# Initialize starship prompt
+if (( $+commands[starship] )); then
+    eval "$(starship init zsh)"
+fi
+
+# Initialize fzf keybindings
+if (( $+commands[fzf] )); then
+    source <(fzf --zsh)
+fi
+
+# ==============================================================================
+# Vim Mode (optional)
+# ==============================================================================
+
+# Enable vim mode
+bindkey -v
+
+# Reduce mode switch delay
+export KEYTIMEOUT=1
+
+# Change cursor shape for different modes
+function zle-keymap-select {
+    if [[ ${KEYMAP} == vicmd ]] || [[ $1 = 'block' ]]; then
+        echo -ne '\e[2 q'
+    elif [[ ${KEYMAP} == main ]] || [[ ${KEYMAP} == viins ]] || [[ ${KEYMAP} = '' ]] || [[ $1 = 'beam' ]]; then
+        echo -ne '\e[6 q'
+    fi
+}
+zle -N zle-keymap-select
+
+# Use beam cursor on startup
+echo -ne '\e[6 q'
+
+# Use beam cursor for each new prompt
+preexec() { echo -ne '\e[6 q' }
+
+# Better escape with jk
+bindkey -M viins 'jk' vi-cmd-mode
+
+# Keep some emacs bindings in insert mode
+bindkey '^A' beginning-of-line
+bindkey '^E' end-of-line
+bindkey '^K' kill-line
+bindkey '^R' history-incremental-search-backward
+bindkey '^W' backward-kill-word
+
+# ==============================================================================
+# Completion System (Optimized for speed)
+# ==============================================================================
+
+# Create cache directories
+[[ -d "${XDG_CACHE_HOME:-$HOME/.cache}/zsh" ]] || mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+
+# Initialize completion system with smart caching
+# Only regenerate completions once per day for faster startup
+autoload -Uz compinit
+_comp_cache="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-$ZSH_VERSION"
+if [[ ! -f "$_comp_cache" ]] || [[ -n ${_comp_cache}(#qN.mh+24) ]]; then
+    # Cache doesn't exist or is older than 24 hours, regenerate
+    compinit -d "$_comp_cache"
+else
+    # Use cached completions without checking (fast path)
+    compinit -C -d "$_comp_cache"
+fi
+unset _comp_cache
+
+# Completion options
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' special-dirs true
+zstyle ':completion:*' accept-exact '*(N)'
+zstyle ':completion:*' use-cache on
+zstyle ':completion:*' cache-path "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompcache"
+
+# Performance: Don't complete functions starting with _
+zstyle ':completion:*:functions' ignored-patterns '_*'
+
+# Performance: Faster completion for large directories
+zstyle ':completion:*' accept-exact-dirs true
+
+# ==============================================================================
+# Key Bindings
+# ==============================================================================
+
+# Use emacs-style keybindings (unless vim mode is enabled)
+
+# History search
+bindkey '^[[A' history-search-backward
+bindkey '^[[B' history-search-forward
+
+# Word navigation
+bindkey '^[[1;5C' forward-word
+bindkey '^[[1;5D' backward-word
+
+# Home/End
+bindkey '^[[H' beginning-of-line
+bindkey '^[[F' end-of-line
+
+# Delete
+bindkey '^[[3~' delete-char
+
+# ==============================================================================
+# Source Additional Configuration
+# ==============================================================================
+
+# Lazy loading for heavy tools (must be sourced before aliases)
+if [[ -f "$XDG_CONFIG_HOME/shell/lazy.sh" ]]; then
+    source "$XDG_CONFIG_HOME/shell/lazy.sh"
+fi
+
+# Source aliases
+if [[ -f "$XDG_CONFIG_HOME/shell/aliases.sh" ]]; then
+    source "$XDG_CONFIG_HOME/shell/aliases.sh"
+fi
+
+# Source functions
+if [[ -f "$XDG_CONFIG_HOME/shell/functions.sh" ]]; then
+    source "$XDG_CONFIG_HOME/shell/functions.sh"
+fi
+
+# Source local overrides (not managed by chezmoi)
+if [[ -f "$HOME/.zshrc.local" ]]; then
+    source "$HOME/.zshrc.local"
+fi
+
+# ==============================================================================
+# Plugins (if using a plugin manager)
+# ==============================================================================
+
+# Syntax highlighting (install via mise or package manager)
+if [[ -f /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+    source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+elif [[ -f /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+    source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
+
+# Autosuggestions (install via mise or package manager)
+if [[ -f /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+    source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+elif [[ -f /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+    source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+
+# ==============================================================================
+# Welcome Message (disabled for faster startup)
+# ==============================================================================
+# Uncomment to show system info on new terminal (adds ~100ms)
+# if (( $+commands[fastfetch] )); then
+#     fastfetch --config neofetch
+# elif (( $+commands[neofetch] )); then
+#     neofetch
+# fi
+
+# ==============================================================================
+# Performance Profiling End (uncomment along with zprof at top)
+# ==============================================================================
+# zprof
+
+# Task Master aliases added on 1/20/2026
+alias tm='task-master'
+alias taskmaster='task-master'
+alias hamster='task-master'
+alias ham='task-master'

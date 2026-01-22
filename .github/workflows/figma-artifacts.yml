@@ -1,0 +1,215 @@
+# Figma Artifact Generation for PRs
+# Generates visual documentation for dotfile changes
+
+name: Generate Figma Artifacts
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'dotfiles/dot_claude/**'
+      - 'dotfiles/patterns/**'
+      - 'dotfiles/dot_config/**'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      agents_changed: ${{ steps.changes.outputs.agents }}
+      commands_changed: ${{ steps.changes.outputs.commands }}
+      skills_changed: ${{ steps.changes.outputs.skills }}
+      plugins_changed: ${{ steps.changes.outputs.plugins }}
+      patterns_changed: ${{ steps.changes.outputs.patterns }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changed components
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            agents:
+              - 'dotfiles/dot_claude/agents/**'
+            commands:
+              - 'dotfiles/dot_claude/commands/**'
+            skills:
+              - 'dotfiles/dot_claude/skills/**'
+            plugins:
+              - 'dotfiles/dot_claude/plugins/**'
+            patterns:
+              - 'dotfiles/patterns/**'
+
+  validate-frontmatter:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml jsonschema
+
+      - name: Validate frontmatter in changed files
+        run: |
+          python scripts/validate-frontmatter.py \
+            --agents ${{ needs.detect-changes.outputs.agents_changed }} \
+            --commands ${{ needs.detect-changes.outputs.commands_changed }} \
+            --skills ${{ needs.detect-changes.outputs.skills_changed }}
+
+  generate-diagrams:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate-frontmatter]
+    if: |
+      needs.detect-changes.outputs.agents_changed == 'true' ||
+      needs.detect-changes.outputs.commands_changed == 'true' ||
+      needs.detect-changes.outputs.skills_changed == 'true' ||
+      needs.detect-changes.outputs.plugins_changed == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js for Mermaid CLI
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Mermaid CLI
+        run: npm install -g @mermaid-js/mermaid-cli
+
+      - name: Setup Python for diagram scripts
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install pyyaml
+
+      - name: Generate architecture diagram
+        run: |
+          # Generate master architecture diagram
+          mmdc -i docs/architecture.mmd -o dotfiles/dot_claude/artifacts/architecture.svg
+
+      - name: Generate component diagrams
+        run: |
+          # Generate diagrams for each changed component type
+          if [ "${{ needs.detect-changes.outputs.agents_changed }}" == "true" ]; then
+            python scripts/generate-agent-diagrams.py
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.commands_changed }}" == "true" ]; then
+            python scripts/generate-command-diagrams.py
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.skills_changed }}" == "true" ]; then
+            python scripts/generate-skill-diagrams.py
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.plugins_changed }}" == "true" ]; then
+            python scripts/generate-plugin-diagrams.py
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: figma-artifacts
+          path: dotfiles/dot_claude/artifacts/
+
+  update-pr:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, generate-diagrams]
+    if: always() && needs.generate-diagrams.result == 'success'
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: figma-artifacts
+          path: artifacts/
+
+      - name: Generate PR comment with visual summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Build comment body
+            let body = '## 📊 Visual Artifact Summary\n\n';
+            body += 'This PR includes changes to dotfile configurations.\n\n';
+
+            // Add change summary
+            const changes = [];
+            if ('${{ needs.detect-changes.outputs.agents_changed }}' === 'true') {
+              changes.push('🤖 **Agents** modified');
+            }
+            if ('${{ needs.detect-changes.outputs.commands_changed }}' === 'true') {
+              changes.push('⚡ **Commands** modified');
+            }
+            if ('${{ needs.detect-changes.outputs.skills_changed }}' === 'true') {
+              changes.push('🎯 **Skills** modified');
+            }
+            if ('${{ needs.detect-changes.outputs.plugins_changed }}' === 'true') {
+              changes.push('🔌 **Plugins** modified');
+            }
+            if ('${{ needs.detect-changes.outputs.patterns_changed }}' === 'true') {
+              changes.push('📋 **Patterns** modified');
+            }
+
+            body += '### Changes Detected\n';
+            body += changes.map(c => `- ${c}`).join('\n');
+            body += '\n\n';
+
+            // Add architecture diagram link
+            body += '### Architecture Overview\n';
+            body += 'See [Master Architecture](dotfiles/dot_claude/FIGMA-MCP.md) for integration points.\n\n';
+
+            // Add frontmatter requirements
+            body += '### Required Frontmatter\n';
+            body += 'All components must include visualization metadata:\n\n';
+            body += '```yaml\n';
+            body += 'figma:\n';
+            body += '  diagram_type: "flowchart"  # flowchart | sequence | state\n';
+            body += '  integration_points: [github, filesystem]\n';
+            body += '```\n\n';
+
+            body += '---\n';
+            body += '*Generated by [Figma Artifacts Workflow](.github/workflows/figma-artifacts.yml)*';
+
+            // Post comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.agents_changed == 'true' ||
+      needs.detect-changes.outputs.commands_changed == 'true' ||
+      needs.detect-changes.outputs.skills_changed == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest pytest-asyncio pyyaml
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v --tb=short
+        env:
+          FIGMA_MCP_ENABLED: 'false'  # Disable actual Figma calls in CI

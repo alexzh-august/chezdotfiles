@@ -1,0 +1,729 @@
+# Databricks SQL Execution Code Pattern Detector
+# DO and DON'T patterns for SQL execution best practices
+# Based on: https://docs.databricks.com/llms.txt
+
+metadata:
+  name: databricks-sql-execution
+  version: "1.0.0"
+  description: Pattern detectors for Databricks SQL execution best practices
+  packages:
+    - databricks-sdk
+    - databricks-sql-connector
+    - pyspark
+
+# ============================================================================
+# SQL EXECUTION METHODS REFERENCE
+# ============================================================================
+#
+# | Method              | Use Case                    | Compute        |
+# |---------------------|-----------------------------|----------------|
+# | Spark SQL           | Notebooks, ETL pipelines    | Cluster        |
+# | DBSQL Connector     | Applications, BI tools      | SQL Warehouse  |
+# | Statement Execution | REST API automation         | SQL Warehouse  |
+# | MCP DBSQL           | AI agent SQL execution      | SQL Warehouse  |
+#
+# ============================================================================
+
+patterns:
+  # ============================================================================
+  # SQL INJECTION PREVENTION
+  # ============================================================================
+
+  sql_injection_prevention:
+    description: Prevent SQL injection vulnerabilities
+    severity: critical
+
+    do:
+      - pattern: |
+          from databricks import sql
+
+          # Use parameterized queries
+          with sql.connect(...) as conn:
+              with conn.cursor() as cursor:
+                  cursor.execute(
+                      "SELECT * FROM users WHERE user_id = :user_id",
+                      {"user_id": user_input}
+                  )
+                  results = cursor.fetchall()
+        explanation: Parameterized queries prevent SQL injection
+
+      - pattern: |
+          # PySpark with parameterized SQL (Spark 3.4+)
+          from pyspark.sql import SparkSession
+
+          spark = SparkSession.builder.getOrCreate()
+
+          # Use parameterized SQL with named parameters
+          df = spark.sql(
+              "SELECT * FROM catalog.schema.events WHERE date = :date_filter",
+              args={"date_filter": user_date}
+          )
+        explanation: PySpark supports parameterized SQL in Spark 3.4+
+
+      - pattern: |
+          # Validate and sanitize table names
+          import re
+
+          def validate_table_name(name: str) -> str:
+              """Validate table name contains only allowed characters."""
+              pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+              if not re.match(pattern, name):
+                  raise ValueError(f"Invalid table name: {name}")
+              return name
+
+          # Use validated names
+          table = validate_table_name(user_table_input)
+          df = spark.table(f"catalog.schema.{table}")
+        explanation: Validate identifiers that can't be parameterized
+
+      - pattern: |
+          # Allowlist approach for dynamic SQL
+          ALLOWED_TABLES = frozenset([
+              "users", "orders", "products", "events"
+          ])
+
+          def safe_query(table: str, filters: dict) -> DataFrame:
+              """Query with allowlisted table names."""
+              if table not in ALLOWED_TABLES:
+                  raise ValueError(f"Table '{table}' not in allowlist")
+
+              return spark.sql(
+                  f"SELECT * FROM catalog.schema.{table} WHERE id = :id",
+                  args=filters
+              )
+        explanation: Allowlist restricts which tables can be queried
+
+    dont:
+      - pattern: |
+          # NEVER use string formatting with user input
+          user_input = request.params["filter"]
+          sql = f"SELECT * FROM users WHERE name = '{user_input}'"  # SQL INJECTION!
+          spark.sql(sql)
+        explanation: String formatting enables SQL injection attacks
+        anti_pattern_regex: "f['\"]SELECT.*\\{.*\\}['\"]"
+
+      - pattern: |
+          # NEVER concatenate user input into SQL
+          table_name = request.params["table"]
+          query = "SELECT * FROM " + table_name  # SQL INJECTION!
+        explanation: Concatenation enables SQL injection
+        anti_pattern_regex: '"SELECT.*"\s*\+\s*\w+'
+
+      - pattern: |
+          # NEVER use .format() with user input
+          sql = "SELECT * FROM {} WHERE id = {}".format(table, user_id)  # BAD!
+        explanation: format() is just as dangerous as f-strings
+        anti_pattern_regex: '\.format\s*\([^)]*\)'
+
+      - pattern: |
+          # NEVER use % formatting with user input
+          sql = "SELECT * FROM %s WHERE id = %s" % (table, id)  # BAD!
+        explanation: %-formatting enables injection
+        anti_pattern_regex: '"%.*%s.*%s.*"\s*%\s*\('
+
+  # ============================================================================
+  # WAREHOUSE MANAGEMENT
+  # ============================================================================
+
+  warehouse_usage:
+    description: Proper SQL warehouse usage patterns
+    severity: warning
+
+    do:
+      - pattern: |
+          from databricks import sql
+          import os
+
+          # Always specify warehouse explicitly
+          connection = sql.connect(
+              server_hostname=os.environ["DATABRICKS_HOST"],
+              http_path=os.environ["DATABRICKS_HTTP_PATH"],  # Warehouse path
+              access_token=os.environ["DATABRICKS_TOKEN"]
+          )
+        explanation: Explicit warehouse prevents unexpected compute usage
+
+      - pattern: |
+          # Use warehouse pools for scaling
+          from databricks.sdk import WorkspaceClient
+
+          client = WorkspaceClient()
+
+          # Get warehouse for query type
+          def get_warehouse_for_query(query_type: str) -> str:
+              """Select appropriate warehouse based on query needs."""
+              warehouses = {
+                  "interactive": "small_warehouse_id",
+                  "etl": "large_warehouse_id",
+                  "reporting": "medium_warehouse_id"
+              }
+              return warehouses.get(query_type, warehouses["interactive"])
+        explanation: Match warehouse size to workload type
+
+      - pattern: |
+          # Handle warehouse startup
+          import time
+          from databricks.sdk import WorkspaceClient
+          from databricks.sdk.service.sql import State
+
+          def ensure_warehouse_running(
+              client: WorkspaceClient,
+              warehouse_id: str,
+              timeout_seconds: int = 300
+          ) -> None:
+              """Ensure warehouse is running before executing queries."""
+              warehouse = client.warehouses.get(warehouse_id)
+
+              if warehouse.state == State.RUNNING:
+                  return
+
+              if warehouse.state == State.STOPPED:
+                  client.warehouses.start(warehouse_id)
+
+              # Wait for warehouse to start
+              start_time = time.time()
+              while time.time() - start_time < timeout_seconds:
+                  warehouse = client.warehouses.get(warehouse_id)
+                  if warehouse.state == State.RUNNING:
+                      return
+                  time.sleep(5)
+
+              raise TimeoutError(f"Warehouse {warehouse_id} failed to start")
+        explanation: Handle warehouse cold starts gracefully
+
+    dont:
+      - pattern: |
+          # Don't leave warehouses running unnecessarily
+          # Configure auto-stop in warehouse settings instead of code
+        explanation: Use warehouse auto-stop to control costs
+
+      - pattern: |
+          # Don't use serverless for predictable large workloads
+          # Serverless is best for bursty, unpredictable queries
+        explanation: Dedicated warehouses may be more cost-effective for steady loads
+
+  # ============================================================================
+  # QUERY OPTIMIZATION
+  # ============================================================================
+
+  query_optimization:
+    description: SQL query optimization patterns
+    severity: info
+
+    do:
+      - pattern: |
+          # Use column projection - only select needed columns
+          spark.sql("""
+              SELECT user_id, email, created_at
+              FROM catalog.schema.users
+              WHERE status = 'active'
+          """)
+        explanation: Projecting specific columns reduces data transfer
+
+      - pattern: |
+          # Use predicate pushdown with partition columns
+          spark.sql("""
+              SELECT *
+              FROM catalog.schema.events
+              WHERE event_date = '2024-01-15'  -- Partition column first
+                AND event_type = 'purchase'
+          """)
+        explanation: Partition filters enable partition pruning
+
+      - pattern: |
+          # Use LIMIT for exploratory queries
+          spark.sql("""
+              SELECT *
+              FROM catalog.schema.large_table
+              LIMIT 1000
+          """)
+        explanation: LIMIT prevents accidental full table scans
+
+      - pattern: |
+          # Cache frequently accessed data
+          events_df = spark.table("catalog.schema.events")
+          events_df.cache()
+
+          # Multiple operations on cached data
+          active_users = events_df.filter(col("status") == "active")
+          daily_counts = events_df.groupBy("date").count()
+        explanation: Caching avoids repeated reads for multi-use DataFrames
+
+      - pattern: |
+          # Use EXPLAIN to understand query plans
+          spark.sql("EXPLAIN EXTENDED SELECT * FROM table").show(truncate=False)
+        explanation: EXPLAIN helps identify optimization opportunities
+
+    dont:
+      - pattern: |
+          # Don't SELECT * in production
+          spark.sql("SELECT * FROM catalog.schema.large_table")  # BAD
+        explanation: SELECT * reads all columns, wasting resources
+        anti_pattern_regex: 'SELECT\s+\*\s+FROM(?!\s+.*LIMIT)'
+
+      - pattern: |
+          # Don't use inefficient joins
+          spark.sql("""
+              SELECT *
+              FROM large_table l
+              CROSS JOIN small_table s  -- CROSS JOIN is expensive!
+          """)
+        explanation: CROSS JOIN creates cartesian product
+        anti_pattern_regex: 'CROSS\s+JOIN'
+
+      - pattern: |
+          # Don't filter on non-partition columns first
+          spark.sql("""
+              SELECT *
+              FROM catalog.schema.events
+              WHERE event_type = 'purchase'  -- Non-partition column
+                AND event_date = '2024-01-15'  -- Partition column (should be first)
+          """)
+        explanation: Put partition filters first for optimal pruning
+
+  # ============================================================================
+  # ERROR HANDLING
+  # ============================================================================
+
+  error_handling:
+    description: Proper SQL error handling patterns
+    severity: error
+
+    do:
+      - pattern: |
+          from databricks import sql
+          from databricks.sql.exc import (
+              DatabaseError,
+              OperationalError,
+              ProgrammingError
+          )
+
+          def safe_execute(query: str) -> list:
+              """Execute query with proper error handling."""
+              try:
+                  with sql.connect(...) as conn:
+                      with conn.cursor() as cursor:
+                          cursor.execute(query)
+                          return cursor.fetchall()
+              except ProgrammingError as e:
+                  # SQL syntax error
+                  logger.error(f"SQL syntax error: {e}")
+                  raise ValueError(f"Invalid SQL: {e}") from e
+              except OperationalError as e:
+                  # Connection/timeout issues
+                  logger.error(f"Operational error: {e}")
+                  raise RuntimeError(f"Database operation failed: {e}") from e
+              except DatabaseError as e:
+                  # General database errors
+                  logger.error(f"Database error: {e}")
+                  raise
+        explanation: Handle specific exception types appropriately
+
+      - pattern: |
+          # Retry transient failures
+          from tenacity import retry, stop_after_attempt, wait_exponential
+
+          @retry(
+              stop=stop_after_attempt(3),
+              wait=wait_exponential(multiplier=1, min=2, max=30)
+          )
+          def execute_with_retry(query: str) -> list:
+              """Execute query with exponential backoff retry."""
+              with sql.connect(...) as conn:
+                  with conn.cursor() as cursor:
+                      cursor.execute(query)
+                      return cursor.fetchall()
+        explanation: Retry transient failures with exponential backoff
+
+      - pattern: |
+          # Handle long-running queries with polling
+          from databricks.sdk import WorkspaceClient
+          from databricks.sdk.service.sql import StatementState
+
+          def execute_long_query(
+              client: WorkspaceClient,
+              sql: str,
+              warehouse_id: str,
+              timeout_minutes: int = 30
+          ) -> dict:
+              """Execute long-running query with status polling."""
+              response = client.statement_execution.execute_statement(
+                  statement=sql,
+                  warehouse_id=warehouse_id,
+                  wait_timeout="0s"  # Don't wait, poll instead
+              )
+
+              statement_id = response.statement_id
+              deadline = time.time() + (timeout_minutes * 60)
+
+              while time.time() < deadline:
+                  status = client.statement_execution.get_statement(statement_id)
+
+                  if status.status.state == StatementState.SUCCEEDED:
+                      return status.result
+                  elif status.status.state in (
+                      StatementState.FAILED,
+                      StatementState.CANCELED
+                  ):
+                      raise RuntimeError(f"Query failed: {status.status.error}")
+
+                  time.sleep(5)
+
+              # Timeout - cancel the query
+              client.statement_execution.cancel_execution(statement_id)
+              raise TimeoutError(f"Query timed out after {timeout_minutes} minutes")
+        explanation: Poll for long queries and handle timeouts
+
+    dont:
+      - pattern: |
+          # Don't catch all exceptions silently
+          try:
+              result = spark.sql(query)
+          except:
+              pass  # BAD: hides all errors
+        explanation: Silent exception handling hides bugs
+        anti_pattern_regex: 'except:\s*\n\s*pass'
+
+      - pattern: |
+          # Don't retry non-transient errors
+          while True:
+              try:
+                  spark.sql("INVALID SQL SYNTAX")
+              except:
+                  continue  # Will retry forever!
+        explanation: Only retry transient failures like timeouts
+
+  # ============================================================================
+  # DATA VALIDATION
+  # ============================================================================
+
+  data_validation:
+    description: Validate data before and after SQL operations
+    severity: warning
+
+    do:
+      - pattern: |
+          # Validate data quality before merge
+          def validate_before_merge(source_df: DataFrame) -> None:
+              """Validate source data before MERGE operation."""
+              # Check for nulls in key columns
+              null_keys = source_df.filter(col("id").isNull()).count()
+              if null_keys > 0:
+                  raise ValueError(f"Found {null_keys} null key values")
+
+              # Check for duplicates
+              total = source_df.count()
+              distinct = source_df.select("id").distinct().count()
+              if total != distinct:
+                  raise ValueError(f"Found {total - distinct} duplicate keys")
+        explanation: Validate data quality to prevent merge failures
+
+      - pattern: |
+          # Post-operation validation
+          def validate_write_success(
+              table: str,
+              expected_count: int,
+              tolerance: float = 0.01
+          ) -> None:
+              """Validate write operation succeeded."""
+              actual = spark.table(table).count()
+              diff_ratio = abs(actual - expected_count) / expected_count
+
+              if diff_ratio > tolerance:
+                  raise ValueError(
+                      f"Row count mismatch: expected ~{expected_count}, "
+                      f"got {actual} ({diff_ratio:.1%} difference)"
+                  )
+        explanation: Verify operations completed as expected
+
+# ============================================================================
+# CODE GENERATORS
+# ============================================================================
+
+generators:
+  safe_sql_executor:
+    description: Generate a safe SQL execution wrapper
+    template: |
+      """Safe SQL Execution Wrapper for Databricks.
+
+      Provides parameterized queries, retry logic, and proper error handling.
+      """
+      from dataclasses import dataclass
+      from typing import Any, Optional
+      import re
+      import logging
+      import time
+
+      from databricks import sql
+      from databricks.sql.exc import DatabaseError, OperationalError
+      from tenacity import (
+          retry,
+          stop_after_attempt,
+          wait_exponential,
+          retry_if_exception_type
+      )
+
+      logger = logging.getLogger(__name__)
+
+
+      @dataclass
+      class SQLConfig:
+          """SQL connection configuration."""
+          server_hostname: str
+          http_path: str
+          access_token: str
+          catalog: str = "main"
+          schema: str = "default"
+
+
+      class SafeSQLExecutor:
+          """Safe SQL executor with injection prevention and retry logic."""
+
+          # Allowlist of valid identifier characters
+          IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+          def __init__(self, config: SQLConfig):
+              self.config = config
+
+          def _validate_identifier(self, name: str) -> str:
+              """Validate an identifier (table/column name)."""
+              if not self.IDENTIFIER_PATTERN.match(name):
+                  raise ValueError(
+                      f"Invalid identifier: {name}. "
+                      "Only alphanumeric and underscore allowed."
+                  )
+              return name
+
+          def _get_connection(self):
+              """Get database connection."""
+              return sql.connect(
+                  server_hostname=self.config.server_hostname,
+                  http_path=self.config.http_path,
+                  access_token=self.config.access_token,
+                  catalog=self.config.catalog,
+                  schema=self.config.schema
+              )
+
+          @retry(
+              stop=stop_after_attempt(3),
+              wait=wait_exponential(multiplier=1, min=2, max=30),
+              retry=retry_if_exception_type(OperationalError)
+          )
+          def execute(
+              self,
+              query: str,
+              params: Optional[dict[str, Any]] = None
+          ) -> list[dict]:
+              """Execute a parameterized query with retry.
+
+              Args:
+                  query: SQL query with :param placeholders
+                  params: Parameter values
+
+              Returns:
+                  List of result rows as dictionaries
+              """
+              with self._get_connection() as conn:
+                  with conn.cursor() as cursor:
+                      cursor.execute(query, params or {})
+                      columns = [desc[0] for desc in cursor.description]
+                      return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+          def execute_read_only(
+              self,
+              query: str,
+              params: Optional[dict[str, Any]] = None
+          ) -> list[dict]:
+              """Execute a read-only query (validation enforced)."""
+              query_upper = query.strip().upper()
+              if not query_upper.startswith("SELECT"):
+                  raise ValueError("Read-only queries must start with SELECT")
+
+              forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER"]
+              for keyword in forbidden:
+                  if keyword in query_upper:
+                      raise ValueError(f"Read-only query cannot contain {keyword}")
+
+              return self.execute(query, params)
+
+          def select_from_table(
+              self,
+              table: str,
+              columns: list[str],
+              where: Optional[dict[str, Any]] = None,
+              limit: Optional[int] = None
+          ) -> list[dict]:
+              """Safe SELECT with validated identifiers.
+
+              Args:
+                  table: Table name (validated)
+                  columns: Column names (validated)
+                  where: WHERE clause parameters (values are parameterized)
+                  limit: Optional row limit
+              """
+              # Validate identifiers
+              safe_table = self._validate_identifier(table)
+              safe_columns = [self._validate_identifier(c) for c in columns]
+
+              # Build query
+              query = f"SELECT {', '.join(safe_columns)} FROM {safe_table}"
+
+              params = {}
+              if where:
+                  conditions = []
+                  for col, value in where.items():
+                      safe_col = self._validate_identifier(col)
+                      param_name = f"p_{safe_col}"
+                      conditions.append(f"{safe_col} = :{param_name}")
+                      params[param_name] = value
+                  query += " WHERE " + " AND ".join(conditions)
+
+              if limit:
+                  query += f" LIMIT {int(limit)}"
+
+              return self.execute(query, params)
+
+  query_validator:
+    description: Generate a SQL query validator
+    template: |
+      """SQL Query Validator for Databricks.
+
+      Validates SQL queries for security and best practices.
+      """
+      import re
+      from dataclasses import dataclass
+      from typing import Optional
+      from enum import Enum
+
+
+      class QueryRisk(Enum):
+          """Risk level for SQL operations."""
+          LOW = "low"
+          MEDIUM = "medium"
+          HIGH = "high"
+          CRITICAL = "critical"
+
+
+      @dataclass
+      class ValidationResult:
+          """Result of query validation."""
+          is_valid: bool
+          risk_level: QueryRisk
+          warnings: list[str]
+          errors: list[str]
+
+
+      class SQLQueryValidator:
+          """Validate SQL queries for security issues."""
+
+          # Injection patterns
+          INJECTION_PATTERNS = [
+              r"'\s*OR\s*'1'\s*=\s*'1",  # Classic ' OR '1'='1
+              r";\s*DROP\s+TABLE",        # Statement chaining
+              r"--\s*$",                   # Comment injection
+              r"/\*.*\*/",                 # Block comment injection
+              r"UNION\s+SELECT",           # UNION injection
+          ]
+
+          # Dangerous operations
+          DANGEROUS_OPS = [
+              (r"\bDROP\s+DATABASE\b", QueryRisk.CRITICAL, "DROP DATABASE detected"),
+              (r"\bDROP\s+TABLE\b", QueryRisk.HIGH, "DROP TABLE detected"),
+              (r"\bTRUNCATE\b", QueryRisk.HIGH, "TRUNCATE detected"),
+              (r"\bDELETE\s+FROM\s+\w+\s*$", QueryRisk.HIGH, "DELETE without WHERE"),
+              (r"\bUPDATE\s+\w+\s+SET\s+.*(?!WHERE)", QueryRisk.HIGH, "UPDATE without WHERE"),
+          ]
+
+          # Performance warnings
+          PERF_WARNINGS = [
+              (r"SELECT\s+\*", "SELECT * may be inefficient"),
+              (r"CROSS\s+JOIN", "CROSS JOIN creates cartesian product"),
+              (r"(?<!LIMIT\s)\d{6,}", "Large number may indicate missing LIMIT"),
+          ]
+
+          def validate(self, query: str) -> ValidationResult:
+              """Validate a SQL query.
+
+              Args:
+                  query: SQL query to validate
+
+              Returns:
+                  ValidationResult with issues found
+              """
+              errors = []
+              warnings = []
+              max_risk = QueryRisk.LOW
+
+              query_upper = query.upper()
+
+              # Check for injection patterns
+              for pattern in self.INJECTION_PATTERNS:
+                  if re.search(pattern, query, re.IGNORECASE):
+                      errors.append(f"Possible SQL injection: {pattern}")
+                      max_risk = QueryRisk.CRITICAL
+
+              # Check dangerous operations
+              for pattern, risk, msg in self.DANGEROUS_OPS:
+                  if re.search(pattern, query_upper):
+                      if risk == QueryRisk.CRITICAL:
+                          errors.append(msg)
+                      else:
+                          warnings.append(msg)
+                      if risk.value > max_risk.value:
+                          max_risk = risk
+
+              # Check performance warnings
+              for pattern, msg in self.PERF_WARNINGS:
+                  if re.search(pattern, query_upper):
+                      warnings.append(msg)
+
+              return ValidationResult(
+                  is_valid=len(errors) == 0,
+                  risk_level=max_risk,
+                  warnings=warnings,
+                  errors=errors
+              )
+
+          def validate_or_raise(self, query: str) -> None:
+              """Validate query and raise if invalid."""
+              result = self.validate(query)
+              if not result.is_valid:
+                  raise ValueError(
+                      f"Query validation failed: {', '.join(result.errors)}"
+                  )
+
+# ============================================================================
+# REFACTORING RULES
+# ============================================================================
+
+refactors:
+  parameterize_queries:
+    description: Convert string-formatted queries to parameterized
+    trigger: 'f["\']SELECT.*\\{.*\\}["\']'
+    fix: |
+      # Before:
+      # sql = f"SELECT * FROM users WHERE id = '{user_id}'"
+
+      # After:
+      sql = "SELECT * FROM users WHERE id = :user_id"
+      result = cursor.execute(sql, {"user_id": user_id})
+
+  add_column_projection:
+    description: Replace SELECT * with specific columns
+    trigger: 'SELECT\s+\*\s+FROM'
+    fix: |
+      # Before:
+      # SELECT * FROM users
+
+      # After:
+      # List only the columns you need
+      SELECT user_id, email, created_at FROM users
+
+  add_query_limit:
+    description: Add LIMIT to queries without one
+    trigger: 'SELECT.*FROM(?!.*LIMIT)'
+    fix: |
+      # Before:
+      # SELECT id, name FROM large_table WHERE status = 'active'
+
+      # After:
+      SELECT id, name FROM large_table WHERE status = 'active' LIMIT 1000

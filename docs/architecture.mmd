@@ -1,0 +1,90 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#a855f7', 'primaryTextColor': '#fff', 'primaryBorderColor': '#7c3aed', 'lineColor': '#c084fc', 'secondaryColor': '#1a1625', 'tertiaryColor': '#2d2438'}}}%%
+
+graph TB
+    subgraph User["👤 Developer"]
+        IDE[IDE / Terminal]
+        Browser[Browser]
+    end
+
+    subgraph ClaudeCode["🤖 Claude Code"]
+        CC_Core[Claude Code Core]
+        CC_Agents[Agents]
+        CC_Commands[Commands]
+        CC_Skills[Skills]
+        CC_Plugins[Plugins]
+        CC_Hooks[Hooks]
+    end
+
+    subgraph MCP["🔌 MCP Servers"]
+        Figma_MCP[Figma MCP]
+        GitHub_MCP[GitHub MCP]
+        FS_MCP[Filesystem MCP]
+    end
+
+    subgraph Figma["🎨 Figma"]
+        Designs[Design Files]
+        Components[Components]
+        Tokens[Design Tokens]
+        Make[Make Resources]
+    end
+
+    subgraph GitHub["📦 GitHub"]
+        Repo[Repository]
+        PR[Pull Requests]
+        Actions[GitHub Actions]
+    end
+
+    subgraph Artifacts["📊 Generated Artifacts"]
+        Diagrams[Architecture Diagrams]
+        Workflows[Workflow Visualizations]
+        Docs[Documentation]
+    end
+
+    %% User interactions
+    IDE --> CC_Core
+    Browser --> Figma
+
+    %% Claude Code internal
+    CC_Core --> CC_Agents
+    CC_Core --> CC_Commands
+    CC_Core --> CC_Skills
+    CC_Core --> CC_Plugins
+    CC_Core --> CC_Hooks
+
+    %% MCP connections
+    CC_Core --> Figma_MCP
+    CC_Core --> GitHub_MCP
+    CC_Core --> FS_MCP
+
+    %% Figma MCP data flow
+    Figma_MCP --> Designs
+    Figma_MCP --> Components
+    Figma_MCP --> Tokens
+    Figma_MCP --> Make
+
+    %% GitHub MCP data flow
+    GitHub_MCP --> Repo
+    GitHub_MCP --> PR
+
+    %% Artifact generation
+    Figma_MCP --> Artifacts
+    Actions --> Artifacts
+    PR --> Actions
+
+    %% Output
+    Artifacts --> Diagrams
+    Artifacts --> Workflows
+    Artifacts --> Docs
+
+    %% Styling
+    classDef claude fill:#a855f7,stroke:#7c3aed,color:#fff
+    classDef figma fill:#f24e1e,stroke:#d63b11,color:#fff
+    classDef github fill:#24292e,stroke:#1a1e22,color:#fff
+    classDef mcp fill:#22d3ee,stroke:#06b6d4,color:#1a1625
+    classDef artifact fill:#10b981,stroke:#059669,color:#fff
+
+    class CC_Core,CC_Agents,CC_Commands,CC_Skills,CC_Plugins,CC_Hooks claude
+    class Figma,Designs,Components,Tokens,Make figma
+    class GitHub,Repo,PR,Actions github
+    class Figma_MCP,GitHub_MCP,FS_MCP mcp
+    class Artifacts,Diagrams,Workflows,Docs artifact
