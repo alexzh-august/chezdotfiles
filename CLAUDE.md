@@ -5,19 +5,29 @@
 
 ## What
 
-A version-controlled, team-shareable collection of configurations for AI coding assistants and development tools:
+A version-controlled, team-shareable collection of configurations for AI coding assistants and development tools.
 
-| Directory | Tool | Purpose |
-|-----------|------|---------|
-| `dot_claude/` | [Claude Code](https://claude.com/claude-code) | Agents, commands, MCP settings |
-| `dot_gemini/` | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Gemini Code configs |
-| `dot_cursor/` | [Cursor](https://cursor.com) | AI-powered IDE settings |
-| `dot_vscode/` | [VS Code](https://code.visualstudio.com) | Extensions, settings, tasks |
-| `dot_antigravity/` | [Antigravity](https://antigravity.dev) | Agent configs |
-| `dot_config/ghostty/` | [Ghostty](https://ghostty.org) | Terminal emulator |
-| `dot_config/starship/` | [Starship](https://starship.rs) | Cross-shell prompt |
-| `shell/` | zsh/bash | Shell configurations |
-| `patterns/` | Static analysis | Code patterns & anti-patterns |
+### Implemented
+
+| Directory | Tool | Purpose | Status |
+|-----------|------|---------|--------|
+| `dot_claude/` | [Claude Code](https://claude.ai/code) | Agents, commands, skills, plugins, hooks | **Ready** |
+| `dot_config/ghostty/` | [Ghostty](https://ghostty.org) | Terminal emulator (Claude-themed) | **Ready** |
+| `dot_config/starship/` | [Starship](https://starship.rs) | Cross-shell prompt | **Ready** |
+| `shell/zsh/` | Zsh | Shell configuration | **Ready** |
+| `patterns/databricks/` | Databricks SDK | Code patterns & anti-patterns | **Ready** |
+
+### Planned (Placeholders)
+
+| Directory | Tool | Purpose | Status |
+|-----------|------|---------|--------|
+| `dot_gemini/` | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Gemini Code configs | Placeholder |
+| `dot_cursor/` | [Cursor](https://cursor.com) | AI-powered IDE settings | Placeholder |
+| `dot_vscode/` | [VS Code](https://code.visualstudio.com) | Extensions, settings, tasks | Placeholder |
+| `dot_antigravity/` | [Antigravity](https://antigravity.dev) | Agent configs | Placeholder |
+| `patterns/python/` | Python | Best practices patterns | Placeholder |
+| `patterns/typescript/` | TypeScript | Best practices patterns | Placeholder |
+| `shell/bash/` | Bash | Shell configuration | Placeholder |
 
 ## Why
 
@@ -40,31 +50,41 @@ Merged → Everyone pulls → Instant team-wide adoption
 
 ## Where
 
-### Repository Structure
+### Repository Structure (Actual)
 
 ```
 chezdotfiles/                    # This repo (chezmoi fork + dotfiles)
 ├── CLAUDE.md                    # This file
 ├── dotfiles/                    # Team-shareable configurations
 │   ├── dot_claude/              # → ~/.claude/
-│   │   ├── agents/              # Custom agents (*.md)
-│   │   ├── commands/            # Slash commands (*.md)
-│   │   ├── context/llms/        # LLM context caches (*.txt)
-│   │   └── settings/            # settings.json, etc.
-│   ├── dot_gemini/              # → ~/.gemini/
-│   ├── dot_cursor/              # → ~/.cursor/
-│   ├── dot_vscode/              # → ~/.vscode/
-│   ├── dot_antigravity/         # → ~/.antigravity/
+│   │   ├── agents/              # Custom agents (9 agents)
+│   │   ├── commands/            # Slash commands (17 commands)
+│   │   ├── context/llms/        # LLM context caches
+│   │   ├── hooks/               # Automation scripts
+│   │   ├── plugins/             # Claude Code plugins
+│   │   │   └── pr-review-toolkit/  # 6-agent PR review suite
+│   │   ├── settings/            # (placeholder for settings.json)
+│   │   └── skills/              # Skill modules (25+ skills)
 │   ├── dot_config/
-│   │   ├── ghostty/             # → ~/.config/ghostty/
-│   │   └── starship/            # → ~/.config/starship.toml
+│   │   ├── ghostty/config       # Claude-themed terminal
+│   │   └── starship/starship.toml  # Cross-shell prompt
 │   ├── shell/
-│   │   ├── zsh/                 # → ~/.zshrc (or sourced)
-│   │   └── bash/                # → ~/.bashrc (or sourced)
-│   └── patterns/                # Code pattern detectors
-│       ├── databricks/          # Databricks SDK patterns
-│       ├── python/              # Python best practices
-│       └── typescript/          # TypeScript patterns
+│   │   └── zsh/
+│   │       ├── zshrc            # Main zsh configuration
+│   │       ├── aliases.sh       # Shared aliases
+│   │       ├── functions.sh     # Shared functions
+│   │       └── lazy.sh          # Lazy-loaded tools
+│   ├── patterns/
+│   │   └── databricks/          # Databricks SDK patterns
+│   │       ├── authentication.yaml
+│   │       ├── mcp_integration.yaml
+│   │       ├── sql_execution.yaml
+│   │       ├── unity_catalog.yaml
+│   │       └── templates.py     # Code generators
+│   ├── dot_gemini/              # (placeholder)
+│   ├── dot_cursor/              # (placeholder)
+│   ├── dot_vscode/              # (placeholder)
+│   └── dot_antigravity/         # (placeholder)
 ├── internal/                    # Chezmoi source code (Go)
 └── [chezmoi source files]
 ```
@@ -73,9 +93,10 @@ chezdotfiles/                    # This repo (chezmoi fork + dotfiles)
 
 | Source | Destination | Method |
 |--------|-------------|--------|
-| `dotfiles/dot_claude/*` | `~/.claude/*` | chezmoi apply |
-| `dotfiles/dot_config/ghostty/*` | `~/.config/ghostty/*` | chezmoi apply |
-| `dotfiles/shell/zsh/*` | sourced from `~/.zshrc` | chezmoi + source |
+| `dotfiles/dot_claude/*` | `~/.claude/*` | symlink or chezmoi |
+| `dotfiles/dot_config/ghostty/*` | `~/.config/ghostty/*` | symlink or chezmoi |
+| `dotfiles/dot_config/starship/*` | `~/.config/starship.toml` | symlink or chezmoi |
+| `dotfiles/shell/zsh/*` | sourced from `~/.zshrc` | source or chezmoi |
 | `dotfiles/patterns/*` | project `.patterns/` or global | copy/symlink |
 
 ## When
@@ -100,12 +121,12 @@ chezdotfiles/                    # This repo (chezmoi fork + dotfiles)
 # Clone your fork
 git clone git@github.com:alexzh-august/chezdotfiles.git ~/chezdotfiles
 
-# Symlink or copy configs you want to use
+# Symlink configs you want to use
 ln -sf ~/chezdotfiles/dotfiles/dot_claude/agents ~/.claude/agents
+ln -sf ~/chezdotfiles/dotfiles/dot_claude/commands ~/.claude/commands
+ln -sf ~/chezdotfiles/dotfiles/dot_claude/skills ~/.claude/skills
+ln -sf ~/chezdotfiles/dotfiles/dot_claude/plugins ~/.claude/plugins
 ln -sf ~/chezdotfiles/dotfiles/dot_config/ghostty/config ~/.config/ghostty/config
-
-# Or use chezmoi to manage (from dotfiles/ subdirectory)
-chezmoi add ~/chezdotfiles/dotfiles/dot_claude
 ```
 
 ### For Team Use (Future)
@@ -119,7 +140,6 @@ chezmoi update
 
 # Contribute new config
 chezmoi cd
-# edit files
 git checkout -b add-pr-review-agent
 git add dot_claude/agents/pr-review.md
 git commit -m "feat: Add PR review agent"
@@ -146,7 +166,7 @@ EOF
 
 2. Test locally:
 ```bash
-ln -sf ~/chezdotfiles/dotfiles/dot_claude/agents/pr-reviewer.md ~/.claude/agents/
+ln -sf ~/chezdotfiles/dotfiles/dot_claude/agents ~/.claude/agents
 claude  # verify agent appears with /agents
 ```
 
@@ -156,20 +176,30 @@ git add dotfiles/dot_claude/agents/pr-reviewer.md
 git commit -m "feat(agents): Add PR reviewer agent"
 ```
 
-### Adding Terminal Optimizations
+### Using the PR Review Toolkit
 
-1. Edit Ghostty config:
+The included `pr-review-toolkit` plugin provides 6 specialized agents:
+
+| Agent | Focus |
+|-------|-------|
+| `code-reviewer` | General code quality, CLAUDE.md compliance |
+| `code-simplifier` | Code clarity, refactoring |
+| `comment-analyzer` | Documentation accuracy |
+| `pr-test-analyzer` | Test coverage quality |
+| `silent-failure-hunter` | Error handling |
+| `type-design-analyzer` | Type design and invariants |
+
+**Usage:**
 ```bash
-vim dotfiles/dot_config/ghostty/config
-```
+# Full review with all agents
+/pr-review-toolkit:review-pr
 
-2. Test:
-```bash
-cp dotfiles/dot_config/ghostty/config ~/.config/ghostty/config
-# Restart Ghostty or Cmd+Shift+R
-```
+# Specific aspects only
+/pr-review-toolkit:review-pr tests errors
 
-3. Document the optimization in commit message
+# Parallel execution
+/pr-review-toolkit:review-pr all parallel
+```
 
 ---
 
@@ -201,8 +231,8 @@ This structure is designed to extend to any [Agent Client Protocol](https://agen
 
 ```
 dotfiles/
-├── dot_claude/      # Anthropic Claude
-├── dot_gemini/      # Google Gemini
+├── dot_claude/      # Anthropic Claude (IMPLEMENTED)
+├── dot_gemini/      # Google Gemini (placeholder)
 ├── dot_copilot/     # GitHub Copilot (future)
 ├── dot_codeium/     # Codeium (future)
 ├── dot_continue/    # Continue.dev (future)
@@ -231,7 +261,7 @@ Each follows the same pattern:
 - OAuth secrets
 - Sensitive file paths
 
-Use chezmoi templates for secrets:
+For secrets, use chezmoi templates (future):
 ```
 # dotfiles/dot_claude/settings.json.tmpl
 {
