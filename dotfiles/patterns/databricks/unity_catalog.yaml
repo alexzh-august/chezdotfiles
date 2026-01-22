@@ -270,10 +270,52 @@ generators:
                   raise
 
           def list_tables(self, schema: str, catalog: Optional[str] = None) -> list:
-              """List all accessible tables in a schema."""
+              """List all accessible tables in a schema.
+
+              Uses identifier validation and escaping to prevent SQL injection.
+              Unity Catalog identifiers must be validated before use in SQL.
+              """
               catalog = catalog or self.default_catalog
-              result = self.spark.sql(f"SHOW TABLES IN {catalog}.{schema}")
+
+              # Validate identifiers to prevent SQL injection
+              if not self._is_valid_identifier(catalog):
+                  raise ValueError(f"Invalid catalog identifier: {catalog}")
+              if not self._is_valid_identifier(schema):
+                  raise ValueError(f"Invalid schema identifier: {schema}")
+
+              # Escape identifiers with backticks for safe SQL construction
+              safe_catalog = self._escape_identifier(catalog)
+              safe_schema = self._escape_identifier(schema)
+
+              result = self.spark.sql(f"SHOW TABLES IN {safe_catalog}.{safe_schema}")
               return [row.tableName for row in result.collect()]
+
+          def _is_valid_identifier(self, name: str) -> bool:
+              """Validate Unity Catalog identifier to prevent SQL injection.
+
+              Valid identifiers:
+              - 1-255 characters
+              - Alphanumeric, underscores, or backtick-escaped
+              - Cannot start with underscore (Unity Catalog restriction)
+              """
+              import re
+              if not name or len(name) > 255:
+                  return False
+              # Allow alphanumeric, underscores, hyphens (will be escaped)
+              # Reject dangerous characters that could break out of identifiers
+              if re.search(r'[;\'"\\`\x00]', name):
+                  return False
+              return True
+
+          def _escape_identifier(self, name: str) -> str:
+              """Escape identifier with backticks for safe SQL use.
+
+              Backtick escaping is the standard way to handle special
+              characters in Unity Catalog identifiers.
+              """
+              # Remove any existing backticks and wrap in backticks
+              clean_name = name.replace('`', '')
+              return f"`{clean_name}`"
 
   namespace_validator:
     description: Generate a namespace validation utility

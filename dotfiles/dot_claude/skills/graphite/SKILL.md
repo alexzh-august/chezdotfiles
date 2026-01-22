@@ -199,98 +199,77 @@ gt checkout <target-branch>
 gt create --insert -am "feat: Insert this change"
 ```
 
-## Worktree Workflow: Multi-Chain Backfill (AUGUST-4032)
+## Worktree Workflow: Parallel Feature Development
 
-This workflow uses git worktrees for parallel chain development with Databricks asset testing.
+This workflow uses git worktrees for parallel development with isolated testing environments.
 
 ### Architecture
 
 ```
-develop/staging (Integration)     Chain Worktrees (Isolated Development)
-├── Test all chains together      ├── SONIC, HYPEREVM, PLASMA, MEZO
-├── Databricks asset builds       ├── INK, FLARE, MONAD, POLYGON
-└── Integration validation        ├── ZIRCUIT, SWELL, HEMI, UNICHAIN
-                                  ├── TAC, SONEIUM, KAVA, POLYZK
-                                  ├── KATANA, MOVEMENT, TON, APTOS
-                                  └── SUI, SOL
+develop/staging (Integration)     Feature Worktrees (Isolated Development)
+├── Test all features together    ├── feature-a, feature-b, feature-c
+├── Run full test suite           ├── bugfix-1, bugfix-2
+└── Integration validation        └── experiment-x
 ```
 
 ### Worktree Locations
 
 | Branch | Location | Purpose |
 |--------|----------|---------|
-| `develop` | `../defi-data-collection-develop` | Integration testing |
-| `staging` | `../defi-data-collection-staging` | Pre-production validation |
-| `AUGUST-4032-BACKFILL-<CHAIN>` | `../defi-data-collection-AUGUST-4032-BACKFILL-<CHAIN>` | Chain-specific work |
+| `develop` | `../your-project-develop` | Integration testing |
+| `staging` | `../your-project-staging` | Pre-production validation |
+| `TICKET-ID-<feature>` | `../your-project-TICKET-ID-<feature>` | Feature-specific work |
 
-### Available Chain Worktrees
-
-| Chain | Branch | Location |
-|-------|--------|----------|
-| SONIC | `AUGUST-4032-BACKFILL-SONIC` | `../defi-data-collection-AUGUST-4032-BACKFILL-SONIC` |
-| HYPEREVM | `AUGUST-4032-BACKFILL-HYPEREVM` | `../defi-data-collection-AUGUST-4032-BACKFILL-HYPEREVM` |
-| PLASMA | `AUGUST-4032-BACKFILL-PLASMA` | `../defi-data-collection-AUGUST-4032-BACKFILL-PLASMA` |
-| MEZO | `AUGUST-4032-BACKFILL-MEZO` | `../defi-data-collection-AUGUST-4032-BACKFILL-MEZO` |
-| INK | `AUGUST-4032-BACKFILL-INK` | `../defi-data-collection-AUGUST-4032-BACKFILL-INK` |
-| FLARE | `AUGUST-4032-BACKFILL-FLARE` | `../defi-data-collection-AUGUST-4032-BACKFILL-FLARE` |
-| MONAD | `AUGUST-4032-BACKFILL-MONAD` | `../defi-data-collection-AUGUST-4032-BACKFILL-MONAD` |
-| POLYGON | `AUGUST-4032-BACKFILL-POLYGON` | `../defi-data-collection-AUGUST-4032-BACKFILL-POLYGON` |
-| ZIRCUIT | `AUGUST-4032-BACKFILL-ZIRCUIT` | `../defi-data-collection-AUGUST-4032-BACKFILL-ZIRCUIT` |
-| SWELL | `AUGUST-4032-BACKFILL-SWELL` | `../defi-data-collection-AUGUST-4032-BACKFILL-SWELL` |
-| HEMI | `AUGUST-4032-BACKFILL-HEMI` | `../defi-data-collection-AUGUST-4032-BACKFILL-HEMI` |
-| UNICHAIN | `AUGUST-4032-BACKFILL-UNICHAIN` | `../defi-data-collection-AUGUST-4032-BACKFILL-UNICHAIN` |
-| TAC | `AUGUST-4032-BACKFILL-TAC` | `../defi-data-collection-AUGUST-4032-BACKFILL-TAC` |
-| SONEIUM | `AUGUST-4032-BACKFILL-SONEIUM` | `../defi-data-collection-AUGUST-4032-BACKFILL-SONEIUM` |
-| KAVA | `AUGUST-4032-BACKFILL-KAVA` | `../defi-data-collection-AUGUST-4032-BACKFILL-KAVA` |
-| POLYZK | `AUGUST-4032-BACKFILL-POLYZK` | `../defi-data-collection-AUGUST-4032-BACKFILL-POLYZK` |
-| KATANA | `AUGUST-4032-BACKFILL-KATANA` | `../defi-data-collection-AUGUST-4032-BACKFILL-KATANA` |
-| MOVEMENT | `AUGUST-4032-BACKFILL-MOVEMENT` | `../defi-data-collection-AUGUST-4032-BACKFILL-MOVEMENT` |
-| TON | `AUGUST-4032-BACKFILL-TON` | `../defi-data-collection-AUGUST-4032-BACKFILL-TON` |
-| APTOS | `AUGUST-4032-BACKFILL-APTOS` | `../defi-data-collection-AUGUST-4032-BACKFILL-APTOS` |
-| SUI | `AUGUST-4032-BACKFILL-SUI` | `../defi-data-collection-AUGUST-4032-BACKFILL-SUI` |
-| SOL | `AUGUST-4032-BACKFILL-SOL` | `../defi-data-collection-AUGUST-4032-BACKFILL-SOL` |
-
-### Workflow: Chain-Specific Customization
-
-When a chain needs special handling:
+### Setting Up Feature Worktrees
 
 ```bash
-# 1. Work in isolated chain worktree
-cd ../defi-data-collection-AUGUST-4032-BACKFILL-SONIC
+# Create worktrees for parallel feature development
+git worktree add ../your-project-feature-auth feature/auth
+git worktree add ../your-project-feature-api feature/api
+git worktree add ../your-project-bugfix-123 bugfix/TICKET-123
+```
 
-# 2. Make chain-specific changes
-# ... implement fixes ...
+### Workflow: Feature-Specific Development
+
+When a feature needs isolated work:
+
+```bash
+# 1. Work in isolated feature worktree
+cd ../your-project-feature-auth
+
+# 2. Make feature-specific changes
+# ... implement feature ...
 
 # 3. Commit changes
-git add . && git commit -m "fix(sonic): Handle custom RPC behavior"
+git add . && git commit -m "feat(auth): Add OAuth provider support"
 
 # 4. Bring changes to develop for integration testing
-cd ../defi-data-collection-develop
+cd ../your-project-develop
 git cherry-pick <commit-hash>
 # OR merge the branch
-git merge AUGUST-4032-BACKFILL-SONIC
+git merge feature/auth
 
-# 5. Test Databricks asset build with all chains
-# Run pipeline in develop environment
+# 5. Run full test suite in develop environment
+# Run integration tests
 
 # 6. If successful, promote to staging
-cd ../defi-data-collection-staging
+cd ../your-project-staging
 git cherry-pick <commit-hash>
 ```
 
-### Workflow: Standard Development (No Chain Issues)
+### Workflow: Standard Development
 
-When all chains work without customization:
+When working without feature isolation:
 
 ```bash
 # Work directly in develop
-cd ../defi-data-collection-develop
+cd ../your-project-develop
 
-# Make changes, test Databricks builds
-git add . && git commit -m "feat(volumes): Add new metric"
+# Make changes, run tests
+git add . && git commit -m "feat(api): Add new endpoint"
 
 # Promote to staging when ready
-cd ../defi-data-collection-staging
+cd ../your-project-staging
 git merge develop
 ```
 
@@ -300,26 +279,25 @@ git merge develop
 # List all worktrees
 git worktree list
 
-# Jump to specific chain
-cd ../defi-data-collection-AUGUST-4032-BACKFILL-POLYGON
+# Jump to specific feature
+cd ../your-project-feature-auth
 
 # Jump to integration
-cd ../defi-data-collection-develop
+cd ../your-project-develop
 
 # Jump to staging
-cd ../defi-data-collection-staging
+cd ../your-project-staging
 ```
 
-### Cleanup (After Backfill Complete)
+### Cleanup (After Feature Complete)
 
 ```bash
-# Remove chain worktrees
-git worktree remove ../defi-data-collection-AUGUST-4032-BACKFILL-SONIC
-# ... repeat for each chain ...
+# Remove feature worktrees
+git worktree remove ../your-project-feature-auth
 
-# Or remove all at once
-for chain in SONIC HYPEREVM PLASMA MEZO INK FLARE MONAD POLYGON ZIRCUIT SWELL HEMI UNICHAIN TAC SONEIUM KAVA POLYZK KATANA MOVEMENT TON APTOS SUI SOL; do
-  git worktree remove ../defi-data-collection-AUGUST-4032-BACKFILL-$chain 2>/dev/null
+# Or remove multiple at once
+for feature in feature-auth feature-api bugfix-123; do
+  git worktree remove ../your-project-$feature 2>/dev/null
 done
 ```
 

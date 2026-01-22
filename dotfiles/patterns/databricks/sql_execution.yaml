@@ -48,16 +48,15 @@ patterns:
         explanation: Parameterized queries prevent SQL injection
 
       - pattern: |
-          # PySpark with parameterized SQL
+          # PySpark with parameterized SQL (Spark 3.4+)
           from pyspark.sql import SparkSession
 
           spark = SparkSession.builder.getOrCreate()
 
-          # Use parameterized SQL
+          # Use parameterized SQL with named parameters
           df = spark.sql(
-              "SELECT * FROM {table} WHERE date = :date_filter",
-              args={"date_filter": user_date},
-              table=spark.table("catalog.schema.events")
+              "SELECT * FROM catalog.schema.events WHERE date = :date_filter",
+              args={"date_filter": user_date}
           )
         explanation: PySpark supports parameterized SQL in Spark 3.4+
 

@@ -189,8 +189,8 @@ bindkey '^W' backward-kill-word
 # Only regenerate completions once per day for faster startup
 autoload -Uz compinit
 _comp_cache="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-$ZSH_VERSION"
-if [[ -n ${_comp_cache}(#qN.mh+24) ]]; then
-    # Cache is older than 24 hours, regenerate
+if [[ ! -f "$_comp_cache" ]] || [[ -n ${_comp_cache}(#qN.mh+24) ]]; then
+    # Cache doesn't exist or is older than 24 hours, regenerate
     compinit -d "$_comp_cache"
 else
     # Use cached completions without checking (fast path)

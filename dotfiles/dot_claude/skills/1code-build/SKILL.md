@@ -10,7 +10,7 @@ Build the 1Code Electron desktop app from source with integrated file metadata t
 ## Quick Start
 
 ```bash
-cd /Users/alexzh/1code
+cd /path/to/1code
 /1code-build
 ```
 
@@ -22,7 +22,7 @@ When this skill is invoked, follow these steps in order:
 
 Check that we're in the 1code project root:
 ```bash
-cd /Users/alexzh/1code && ls package.json
+cd $PROJECT_ROOT && ls package.json
 ```
 
 If not found, ask the user for the correct path.

@@ -389,11 +389,16 @@ class MultiWorkerDemo(App):
         progress_bar = self.query_one(f"#worker{worker_num}", ProgressBar)
         steps = 100
 
-        for i in range(steps):
-            await asyncio.sleep(duration / steps)
-            progress_bar.update(progress=i + 1)
+        try:
+            for i in range(steps):
+                await asyncio.sleep(duration / steps)
+                progress_bar.update(progress=i + 1)
 
-        log.write_line(f"[green]Worker {worker_num} completed![/]")
+            log.write_line(f"[green]Worker {worker_num} completed![/]")
+        except asyncio.CancelledError:
+            log.write_line(f"[yellow]Worker {worker_num} cancelled, cleaning up...[/]")
+            # Perform any necessary cleanup here
+            raise  # Re-raise to properly signal cancellation to the framework
 
 
 if __name__ == "__main__":

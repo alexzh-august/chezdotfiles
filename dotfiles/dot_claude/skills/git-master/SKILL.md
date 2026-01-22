@@ -343,8 +343,8 @@ git merge --squash <branch>
 
 # Merge with specific strategy
 git merge -s recursive <branch>  # Default strategy
-git merge -s ours <branch>  # Always use "our" version
-git merge -s theirs <branch>  # Always use "their" version (requires merge-theirs)
+git merge -s ours <branch>  # Always use "our" version (discard theirs)
+# Note: There is no built-in -s theirs strategy. Use -X theirs instead:
 git merge -s octopus <branch1> <branch2> <branch3>  # Merge multiple branches
 
 # Merge with strategy options

@@ -171,6 +171,7 @@ TDD Cycles: [N]
 
 ## File Change Manifest
 | File | Action | Phase |
+| --- | --- | --- |
 
 ## Test Coverage
 - Unit: [List]
@@ -178,6 +179,7 @@ TDD Cycles: [N]
 
 ## Risks & Mitigations
 | Risk | Likelihood | Impact | Mitigation |
+| --- | --- | --- | --- |
 
 ## Approval
 - [x] Critic: [VERDICT]

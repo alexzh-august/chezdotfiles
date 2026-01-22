@@ -122,22 +122,26 @@ CSS = """
 
 Two panels side-by-side:
 ```python
+from textual.app import App, ComposeResult
+from textual.containers import Container
+from textual.widgets import Label
+
 class SplitScreen(App):
     CSS = """
     Screen {
         layout: horizontal;
     }
-    
+
     #left-panel {
         width: 30%;
         border-right: solid $accent;
     }
-    
+
     #right-panel {
         width: 70%;
     }
     """
-    
+
     def compose(self) -> ComposeResult:
         with Container(id="left-panel"):
             yield Label("Sidebar")
@@ -149,22 +153,26 @@ class SplitScreen(App):
 
 Two panels stacked:
 ```python
+from textual.app import App, ComposeResult
+from textual.containers import Container
+from textual.widgets import Label
+
 class SplitScreenHorizontal(App):
     CSS = """
     Screen {
         layout: vertical;
     }
-    
+
     #top-panel {
         height: 50%;
         border-bottom: solid $accent;
     }
-    
+
     #bottom-panel {
         height: 50%;
     }
     """
-    
+
     def compose(self) -> ComposeResult:
         with Container(id="top-panel"):
             yield Label("Top content")
@@ -176,25 +184,29 @@ class SplitScreenHorizontal(App):
 
 Classic sidebar-content-sidebar:
 ```python
+from textual.app import App, ComposeResult
+from textual.containers import Container
+from textual.widgets import Label
+
 class ThreeColumn(App):
     CSS = """
     Screen {
         layout: horizontal;
     }
-    
+
     #left-sidebar {
         width: 20;
     }
-    
+
     #content {
         width: 1fr;  /* Take remaining space */
     }
-    
+
     #right-sidebar {
         width: 25;
     }
     """
-    
+
     def compose(self) -> ComposeResult:
         with Container(id="left-sidebar"):
             yield Label("Menu")
@@ -239,12 +251,16 @@ class Dashboard(App):
 
 Center content horizontally and vertically:
 ```python
+from textual.app import App, ComposeResult
+from textual.containers import Container
+from textual.widgets import Label, Button
+
 class CenteredApp(App):
     CSS = """
     Screen {
         align: center middle;
     }
-    
+
     #dialog {
         width: 60;
         height: 20;
@@ -253,7 +269,7 @@ class CenteredApp(App):
         background: $surface;
     }
     """
-    
+
     def compose(self) -> ComposeResult:
         with Container(id="dialog"):
             yield Label("Centered Dialog")
@@ -440,15 +456,17 @@ def compose(self) -> ComposeResult:
 
 Centered modal dialog:
 ```python
+from textual.app import ComposeResult
 from textual.screen import ModalScreen
-from textual.containers import Container
+from textual.containers import Container, Horizontal
+from textual.widgets import Label, Button
 
 class Modal(ModalScreen[bool]):
     CSS = """
     Modal {
         align: center middle;
     }
-    
+
     #dialog {
         width: 50;
         height: 15;
@@ -457,7 +475,7 @@ class Modal(ModalScreen[bool]):
         padding: 1;
     }
     """
-    
+
     def compose(self) -> ComposeResult:
         with Container(id="dialog"):
             yield Label("Are you sure?")
@@ -494,6 +512,9 @@ class SidebarApp(App):
 
 Staggered grid:
 ```python
+from textual.app import App, ComposeResult
+from textual.widgets import Static
+
 class MasonryLayout(App):
     CSS = """
     Screen {
@@ -523,6 +544,9 @@ class MasonryLayout(App):
 
 Adjustable split panels:
 ```python
+from textual.app import App
+from textual.reactive import reactive
+
 class ResizableSplit(App):
     left_width = reactive(30)
     

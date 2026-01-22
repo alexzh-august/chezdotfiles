@@ -170,10 +170,11 @@ Enable with `ALTER TABLE tbl ENABLE ROW LEVEL SECURITY`. Create policies: `CREAT
 ```sql
 CREATE TABLE users (
   user_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
   name TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Case-insensitive uniqueness: prevents 'User@Example.com' and 'user@example.com' duplicates
 CREATE UNIQUE INDEX ON users (LOWER(email));
 CREATE INDEX ON users (created_at);
 ```

@@ -47,6 +47,7 @@ def generate_unity_catalog_client(
         from typing import Optional
         import os
         import logging
+        import re
 
         from pyspark.sql import DataFrame, SparkSession
         from pyspark.sql.utils import AnalysisException
@@ -54,18 +55,73 @@ def generate_unity_catalog_client(
         logger = logging.getLogger(__name__)
 
 
+        # Valid SQL identifier pattern (prevents SQL injection)
+        _IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+        def _validate_identifier(name: str) -> str:
+            """Validate a SQL identifier (catalog, schema, or table name).
+
+            Args:
+                name: Identifier to validate
+
+            Returns:
+                The validated identifier
+
+            Raises:
+                ValueError: If identifier contains invalid characters
+            """
+            if not _IDENTIFIER_PATTERN.match(name):
+                raise ValueError(
+                    f"Invalid SQL identifier: {{name!r}}. "
+                    "Only alphanumeric characters and underscores allowed, "
+                    "must start with letter or underscore."
+                )
+            return name
+
+        def _quote_identifier(name: str) -> str:
+            """Quote a SQL identifier using backticks (Spark SQL standard).
+
+            Args:
+                name: Pre-validated identifier
+
+            Returns:
+                Backtick-quoted identifier
+            """
+            # Double any existing backticks to escape them
+            escaped = name.replace("`", "``")
+            return f"`{{escaped}}`"
+
+
         @dataclass
         class TableReference:
-            """Fully qualified table reference."""
+            """Fully qualified table reference with SQL injection prevention."""
 
             catalog: str
             schema: str
             table: str
 
+            def __post_init__(self):
+                """Validate all identifiers on creation."""
+                _validate_identifier(self.catalog)
+                _validate_identifier(self.schema)
+                _validate_identifier(self.table)
+
             @property
             def full_path(self) -> str:
-                """Return three-level namespace path."""
+                """Return three-level namespace path (unquoted, for display)."""
                 return f"{{self.catalog}}.{{self.schema}}.{{self.table}}"
+
+            @property
+            def quoted_path(self) -> str:
+                """Return safely quoted three-level namespace path for SQL.
+
+                Uses backtick quoting per Spark SQL standard.
+                """
+                return (
+                    f"{{_quote_identifier(self.catalog)}}."
+                    f"{{_quote_identifier(self.schema)}}."
+                    f"{{_quote_identifier(self.table)}}"
+                )
 
             def __str__(self) -> str:
                 return self.full_path
@@ -157,7 +213,7 @@ def generate_unity_catalog_client(
                 """
                 ref = self.table_ref(table)
                 try:
-                    self.spark.sql(f"DESCRIBE TABLE {{ref.full_path}}")
+                    self.spark.sql(f"DESCRIBE TABLE {{ref.quoted_path}}")
                     return True
                 except AnalysisException:
                     return False
@@ -172,7 +228,10 @@ def generate_unity_catalog_client(
                     List of table names
                 """
                 schema = schema or self.schema
-                result = self.spark.sql(f"SHOW TABLES IN {{self.catalog}}.{{schema}}")
+                # Validate and quote identifiers to prevent SQL injection
+                safe_catalog = _quote_identifier(_validate_identifier(self.catalog))
+                safe_schema = _quote_identifier(_validate_identifier(schema))
+                result = self.spark.sql(f"SHOW TABLES IN {{safe_catalog}}.{{safe_schema}}")
                 return [row.tableName for row in result.collect()]
 
             def list_schemas(self, catalog: Optional[str] = None) -> list[str]:
@@ -185,7 +244,9 @@ def generate_unity_catalog_client(
                     List of schema names
                 """
                 catalog = catalog or self.catalog
-                result = self.spark.sql(f"SHOW SCHEMAS IN {{catalog}}")
+                # Validate and quote identifier to prevent SQL injection
+                safe_catalog = _quote_identifier(_validate_identifier(catalog))
+                result = self.spark.sql(f"SHOW SCHEMAS IN {{safe_catalog}}")
                 return [row.databaseName for row in result.collect()]
 
             def describe_table(self, table: str) -> DataFrame:
@@ -198,7 +259,7 @@ def generate_unity_catalog_client(
                     DataFrame with column metadata
                 """
                 ref = self.table_ref(table)
-                return self.spark.sql(f"DESCRIBE TABLE {{ref.full_path}}")
+                return self.spark.sql(f"DESCRIBE TABLE {{ref.quoted_path}}")
     ''').strip()
 
     if include_tests:

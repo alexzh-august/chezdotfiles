@@ -271,7 +271,10 @@ asyncio.run(consume_async_iterator())
 ```python
 import asyncio
 from asyncio import Queue
-from typing import Optional
+
+# Dedicated sentinel object for termination signaling
+# Using object() ensures uniqueness - no valid data can equal this
+SENTINEL = object()
 
 async def producer(queue: Queue, producer_id: int, num_items: int):
     """Produce items and put them in queue."""
@@ -280,14 +283,15 @@ async def producer(queue: Queue, producer_id: int, num_items: int):
         await queue.put(item)
         print(f"Producer {producer_id} produced: {item}")
         await asyncio.sleep(0.1)
-    await queue.put(None)  # Signal completion
+    # Note: Producers do NOT send sentinels - coordination handles this
 
-async def consumer(queue: Queue, consumer_id: int):
-    """Consume items from queue."""
+async def consumer(queue: Queue, consumer_id: int, sentinel: object):
+    """Consume items from queue until sentinel received."""
     while True:
         item = await queue.get()
-        if item is None:
+        if item is sentinel:
             queue.task_done()
+            print(f"Consumer {consumer_id} shutting down")
             break
 
         print(f"Consumer {consumer_id} processing: {item}")
@@ -295,8 +299,9 @@ async def consumer(queue: Queue, consumer_id: int):
         queue.task_done()
 
 async def producer_consumer_example():
-    """Run producer-consumer pattern."""
-    queue = Queue(maxsize=10)
+    """Run producer-consumer pattern with proper termination."""
+    queue: Queue = Queue(maxsize=10)
+    num_consumers = 3
 
     # Create tasks
     producers = [
@@ -305,19 +310,22 @@ async def producer_consumer_example():
     ]
 
     consumers = [
-        asyncio.create_task(consumer(queue, i))
-        for i in range(3)
+        asyncio.create_task(consumer(queue, i, SENTINEL))
+        for i in range(num_consumers)
     ]
 
-    # Wait for producers
+    # Wait for all producers to finish
     await asyncio.gather(*producers)
 
-    # Wait for queue to be empty
+    # Send exactly one sentinel per consumer for clean shutdown
+    for _ in range(num_consumers):
+        await queue.put(SENTINEL)
+
+    # Wait for all items (including sentinels) to be processed
     await queue.join()
 
-    # Cancel consumers
-    for c in consumers:
-        c.cancel()
+    # All consumers should have terminated gracefully
+    await asyncio.gather(*consumers)
 
 asyncio.run(producer_consumer_example())
 ```
