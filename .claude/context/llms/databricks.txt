@@ -1,0 +1,247 @@
+# Databricks - llms.txt Cache
+# Source: https://docs.databricks.com/llms.txt, https://docs.databricks.com/api/llms.txt
+# Cached: 2026-01-21
+
+## Platform Overview
+
+Databricks is a unified data and AI platform built on the lakehouse architecture, combining data warehousing and data lakes with AI/ML capabilities.
+
+## MCP (Model Context Protocol) Integration
+
+Databricks provides three MCP options for connecting AI agents to data and tools:
+
+### 1. Managed MCP Servers (Ready-to-Use)
+
+Pre-configured servers that work out of the box:
+
+| Server | Description | URL Pattern |
+|--------|-------------|-------------|
+| **Vector Search** | Query Vector Search indexes | `https://<workspace>/api/2.0/mcp/vector-search/{catalog}/{schema}` |
+| **Genie Space** | Natural language data analysis | `https://<workspace>/api/2.0/mcp/genie/{genie_space_id}` |
+| **Unity Catalog Functions** | Run predefined SQL queries | `https://<workspace>/api/2.0/mcp/functions/{catalog}/{schema}` |
+| **DBSQL** | Run AI-generated SQL | `https://<workspace>/api/2.0/mcp/sql` |
+
+**Security**: Unity Catalog permissions are always enforced.
+
+**Auth**: Supports OAuth and PAT authentication.
+
+### 2. External MCP Servers
+
+Connect to third-party MCP servers:
+- Install from Databricks Marketplace (You.com, Glean, etc.)
+- Create custom Unity Catalog HTTP connections
+- Secure token management via managed proxies
+
+### 3. Custom MCP Servers
+
+Host your own MCP server as a Databricks App:
+- Full control over business logic
+- Requires app deployment
+- You configure authentication
+
+## Claude Code Integration
+
+### Setup with Claude Desktop
+```json
+{
+  "mcpServers": {
+    "databricks-sql": {
+      "command": "npx",
+      "args": ["databricks-mcp-server"],
+      "env": {
+        "DATABRICKS_HOST": "https://your-workspace.cloud.databricks.com",
+        "DATABRICKS_TOKEN": "your-token"
+      }
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+**SQL Execution:**
+- `execute_sql` - Execute SQL in DBSQL
+- `execute_sql_read_only` - Read-only SQL queries
+- `poll_sql_result` - Poll long-running queries
+
+**Genie (AI SQL Assistant):**
+- Natural language to SQL
+- Analyze structured data
+- Best for read-only operations and chatbots
+
+**Vector Search:**
+- Query indexes with embeddings
+- Only Databricks-managed embeddings supported
+
+**Unity Catalog Functions:**
+- Execute predefined functions
+- Serverless compute execution
+
+## Unity Catalog
+
+Three-level namespace: `catalog.schema.table`
+
+### Key Operations
+```sql
+-- List catalogs
+SHOW CATALOGS;
+
+-- List schemas
+SHOW SCHEMAS IN catalog_name;
+
+-- List tables
+SHOW TABLES IN catalog_name.schema_name;
+
+-- Describe table
+DESCRIBE TABLE catalog_name.schema_name.table_name;
+```
+
+### Escape Names with Special Characters
+```sql
+SELECT * FROM catalog.schema.`special-table`;
+```
+
+## Core API Domains
+
+### Compute
+- **Clusters**: Create, Edit, Restart, ListNodeTypes (22 operations)
+- **Cluster Policies**: Permission-aware CRUD
+- **Instance Pools**: Scalable compute pools
+- **Command Execution**: Execute, cancel, monitor
+
+### Jobs
+Orchestration platform (20 operations):
+- Create, Run, Monitor, Cancel, Repair
+- Export runs, repair failed tasks
+- Permission and compliance features
+
+### SQL
+- **Warehouses**: Create, edit, start, stop (11 endpoints)
+- **Queries**: CRUD with execution history
+- **Statement Execution**: Execute, cancel, retrieve chunks
+- **Alerts**: Notification triggers
+
+### Catalog (Largest Domain)
+23+ resource types for data governance:
+- Metastores & Assignments
+- Storage Credentials
+- Tables & Schemas
+- Functions
+- Grants (with GetEffective)
+- Quality Monitors
+- Registered Models
+- Volumes
+- External Locations
+- Connections
+
+### Machine Learning
+- **Experiments**: 40+ MLflow endpoints
+- **Model Registry**: Version management, webhooks (45+ endpoints)
+- **Model Serving**: 21 endpoints including Query, Logs
+
+### Vector Search
+- **Endpoints**: Create, manage, retrieve metrics
+- **Indexes**: Create, query, sync, upsert data
+
+### Files & Storage
+- **DBFS**: Block-based file operations
+- **Files API**: Directory and file management
+
+### Sharing (Delta Sharing)
+- **Providers**: List shares, manage assets
+- **Recipients**: Token rotation, permissions
+- **Shares**: Create, update, manage permissions
+
+## Genie AI Assistant
+
+Natural language interface for data analysis:
+- Converts questions to SQL
+- Executes against SQL warehouses
+- Best for business users and chatbots
+
+### Usage Pattern
+```
+User: "Show me sales by region for Q4"
+-> Genie generates SQL
+-> Executes query
+-> Returns formatted results
+```
+
+### Note
+Managed MCP server for Genie doesn't pass history when invoking APIs. For multi-turn conversations, use Genie in multi-agent system.
+
+## AI Playground
+
+Test MCP servers without code:
+1. Go to AI Playground
+2. Choose a model with "Tools enabled" label
+3. Click Tools > + Add tool > MCP Servers
+4. Select managed or external servers
+5. Chat to test tool interactions
+
+## Compute Pricing
+
+| Service | Pricing Model |
+|---------|---------------|
+| Unity Catalog Functions | Serverless general compute |
+| Genie | Serverless SQL compute |
+| DBSQL Server | SQL warehouse pricing |
+| Vector Search | Vector Search pricing |
+| Custom MCP Servers | Databricks Apps pricing |
+
+## Authentication
+
+### OAuth (Recommended)
+Supports OAuth and PAT for external clients like Cursor and Claude Desktop.
+
+### Personal Access Token (PAT)
+```bash
+export DATABRICKS_HOST="https://your-workspace.cloud.databricks.com"
+export DATABRICKS_TOKEN="your-pat-token"
+```
+
+### Service Principal
+For production deployments and CI/CD.
+
+## SDK Support
+
+- **Python**: `databricks-sdk`
+- **Java**: `databricks-sdk-java`
+- **Go**: `databricks-sdk-go`
+- **REST API**: Full API access
+
+## MCP Server Configuration
+
+```json
+{
+  "mcpServers": {
+    "databricks-sql": {
+      "url": "https://<workspace>/api/2.0/mcp/sql"
+    },
+    "databricks-genie": {
+      "url": "https://<workspace>/api/2.0/mcp/genie/<space_id>"
+    },
+    "databricks-vector-search": {
+      "url": "https://<workspace>/api/2.0/mcp/vector-search/catalog/schema"
+    },
+    "databricks-uc-functions": {
+      "url": "https://<workspace>/api/2.0/mcp/functions/catalog/schema"
+    }
+  }
+}
+```
+
+## Best Practices
+
+1. Use Genie for read-only queries and chatbots
+2. Use DBSQL for data pipeline authoring with AI tools
+3. Leverage Unity Catalog for governance
+4. Set up Vector Search for RAG applications
+5. Use managed MCP servers for out-of-box security
+
+## Resources
+
+- **Documentation**: https://docs.databricks.com
+- **API Reference**: https://docs.databricks.com/api/llms.txt
+- **MCP Guide**: https://docs.databricks.com/aws/en/generative-ai/mcp/
+- **AI Playground**: Available in workspace under Agents
