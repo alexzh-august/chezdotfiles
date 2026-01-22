@@ -1,0 +1,520 @@
+# Databricks MCP (Model Context Protocol) Integration Patterns
+# DO and DON'T patterns for MCP server configuration and usage
+# Based on: https://docs.databricks.com/llms.txt
+
+metadata:
+  name: databricks-mcp-integration
+  version: "1.0.0"
+  description: Pattern detectors for Databricks MCP integration best practices
+  packages:
+    - databricks-sdk
+    - mcp
+    - httpx
+
+# ============================================================================
+# MCP SERVER TYPES REFERENCE
+# ============================================================================
+#
+# | Server Type        | URL Pattern                                              | Use Case                    |
+# |--------------------|----------------------------------------------------------|-----------------------------|
+# | Vector Search      | https://<workspace>/api/2.0/mcp/vector-search/{cat}/{schema} | RAG applications       |
+# | Genie Space        | https://<workspace>/api/2.0/mcp/genie/{genie_space_id}  | Natural language queries    |
+# | UC Functions       | https://<workspace>/api/2.0/mcp/functions/{cat}/{schema}| Predefined SQL functions    |
+# | DBSQL              | https://<workspace>/api/2.0/mcp/sql                      | AI-generated SQL execution  |
+#
+# ============================================================================
+
+patterns:
+  # ============================================================================
+  # MCP CONFIGURATION PATTERNS
+  # ============================================================================
+
+  mcp_server_config:
+    description: Proper MCP server configuration
+    severity: error
+
+    do:
+      - pattern: |
+          # Claude Desktop / Claude Code MCP configuration
+          {
+            "mcpServers": {
+              "databricks-sql": {
+                "command": "npx",
+                "args": ["databricks-mcp-server"],
+                "env": {
+                  "DATABRICKS_HOST": "https://your-workspace.cloud.databricks.com",
+                  "DATABRICKS_TOKEN": "${DATABRICKS_TOKEN}"
+                }
+              }
+            }
+          }
+        explanation: Use environment variable references for tokens, never hardcode
+
+      - pattern: |
+          # Multiple MCP servers for different capabilities
+          {
+            "mcpServers": {
+              "databricks-sql": {
+                "url": "https://workspace.cloud.databricks.com/api/2.0/mcp/sql"
+              },
+              "databricks-genie": {
+                "url": "https://workspace.cloud.databricks.com/api/2.0/mcp/genie/space123"
+              },
+              "databricks-vector-search": {
+                "url": "https://workspace.cloud.databricks.com/api/2.0/mcp/vector-search/catalog/schema"
+              },
+              "databricks-uc-functions": {
+                "url": "https://workspace.cloud.databricks.com/api/2.0/mcp/functions/catalog/schema"
+              }
+            }
+          }
+        explanation: Configure separate servers for SQL, Genie, Vector Search, and UC Functions
+
+    dont:
+      - pattern: |
+          # Never hardcode tokens in configuration
+          {
+            "mcpServers": {
+              "databricks": {
+                "env": {
+                  "DATABRICKS_TOKEN": "dapi123abc456def789"  # BAD!
+                }
+              }
+            }
+          }
+        explanation: Hardcoded tokens in config files are security vulnerabilities
+        anti_pattern_regex: '"DATABRICKS_TOKEN"\s*:\s*"dapi[a-zA-Z0-9]+'
+
+      - pattern: |
+          # Don't use HTTP for production
+          {
+            "mcpServers": {
+              "databricks": {
+                "url": "http://workspace.cloud.databricks.com/api/2.0/mcp/sql"
+              }
+            }
+          }
+        explanation: Always use HTTPS for Databricks connections
+        anti_pattern_regex: '"url"\s*:\s*"http://[^s]'
+
+  # ============================================================================
+  # GENIE PATTERNS (AI SQL ASSISTANT)
+  # ============================================================================
+
+  genie_usage:
+    description: Best practices for Genie AI SQL assistant
+    severity: warning
+
+    do:
+      - pattern: |
+          # Use Genie for natural language to SQL
+          async def query_with_genie(question: str) -> dict:
+              """Convert natural language to SQL using Genie."""
+              async with mcp_client.session() as session:
+                  result = await session.call_tool(
+                      "genie_query",
+                      {
+                          "question": question,
+                          "space_id": GENIE_SPACE_ID
+                      }
+                  )
+                  return result
+
+          # Example: "Show me sales by region for Q4 2024"
+          result = await query_with_genie("Show me sales by region for Q4 2024")
+        explanation: Genie converts natural language to SQL automatically
+
+      - pattern: |
+          # Genie for read-only chatbot queries
+          class DataChatbot:
+              """Chatbot using Genie for data queries."""
+
+              def __init__(self, genie_space_id: str):
+                  self.genie_url = (
+                      f"https://{WORKSPACE}/api/2.0/mcp/genie/{genie_space_id}"
+                  )
+
+              async def answer(self, user_question: str) -> str:
+                  """Answer user question using Genie."""
+                  # Genie handles SQL generation and execution
+                  result = await self._call_genie(user_question)
+                  return self._format_response(result)
+        explanation: Genie is ideal for read-only queries and chatbot interfaces
+
+    dont:
+      - pattern: |
+          # Don't use Genie for multi-turn without context management
+          # Genie MCP doesn't pass history between calls
+          for question in user_questions:
+              result = await genie.query(question)  # Each call is independent!
+        explanation: Genie MCP doesn't maintain conversation history
+
+      - pattern: |
+          # Don't use Genie for write operations
+          await genie.query("Delete all records from users table")  # BAD
+          await genie.query("UPDATE orders SET status = 'cancelled'")  # BAD
+        explanation: Genie is optimized for read-only queries, use DBSQL for writes
+        anti_pattern_regex: 'genie.*(?:DELETE|UPDATE|INSERT|DROP|TRUNCATE)'
+
+  # ============================================================================
+  # DBSQL PATTERNS
+  # ============================================================================
+
+  dbsql_execution:
+    description: Patterns for DBSQL MCP server usage
+    severity: error
+
+    do:
+      - pattern: |
+          # Use DBSQL for AI-generated SQL in data pipelines
+          async def execute_sql(sql: str, warehouse_id: str) -> dict:
+              """Execute SQL via DBSQL MCP server."""
+              async with mcp_client.session() as session:
+                  result = await session.call_tool(
+                      "execute_sql",
+                      {
+                          "statement": sql,
+                          "warehouse_id": warehouse_id,
+                          "wait_timeout": "30s"
+                      }
+                  )
+                  return result
+        explanation: DBSQL is for pipeline authoring with AI-generated SQL
+
+      - pattern: |
+          # Read-only mode for safety
+          async def safe_query(sql: str) -> dict:
+              """Execute read-only SQL query."""
+              result = await session.call_tool(
+                  "execute_sql_read_only",
+                  {"statement": sql}
+              )
+              return result
+        explanation: Use execute_sql_read_only when writes aren't needed
+
+      - pattern: |
+          # Poll for long-running queries
+          async def execute_with_polling(sql: str) -> dict:
+              """Execute SQL with result polling for long queries."""
+              # Start execution
+              response = await session.call_tool(
+                  "execute_sql",
+                  {"statement": sql, "wait_timeout": "0s"}
+              )
+
+              statement_id = response["statement_id"]
+
+              # Poll until complete
+              while True:
+                  status = await session.call_tool(
+                      "poll_sql_result",
+                      {"statement_id": statement_id}
+                  )
+                  if status["state"] in ("SUCCEEDED", "FAILED", "CANCELED"):
+                      return status
+                  await asyncio.sleep(1)
+        explanation: Use polling for queries that may exceed timeout
+
+    dont:
+      - pattern: |
+          # Don't execute SQL without warehouse specification in production
+          await session.call_tool("execute_sql", {"statement": sql})
+        explanation: Always specify warehouse_id for predictable execution
+
+      - pattern: |
+          # Don't build SQL with string concatenation
+          user_input = request.params["filter"]
+          sql = f"SELECT * FROM table WHERE name = '{user_input}'"  # SQL INJECTION!
+        explanation: SQL injection vulnerability - use parameterized queries
+        anti_pattern_regex: "f['\"]SELECT.*WHERE.*\\{.*\\}['\"]"
+
+  # ============================================================================
+  # VECTOR SEARCH PATTERNS
+  # ============================================================================
+
+  vector_search:
+    description: Patterns for Vector Search MCP usage
+    severity: warning
+
+    do:
+      - pattern: |
+          # Configure Vector Search MCP for RAG
+          VECTOR_SEARCH_CONFIG = {
+              "url": f"https://{WORKSPACE}/api/2.0/mcp/vector-search/{CATALOG}/{SCHEMA}",
+              "index_name": "document_embeddings",
+              "num_results": 10
+          }
+
+          async def semantic_search(query: str) -> list:
+              """Search for semantically similar documents."""
+              result = await session.call_tool(
+                  "query_index",
+                  {
+                      "index_name": VECTOR_SEARCH_CONFIG["index_name"],
+                      "query_text": query,
+                      "num_results": VECTOR_SEARCH_CONFIG["num_results"]
+                  }
+              )
+              return result["results"]
+        explanation: Use Vector Search for RAG (Retrieval Augmented Generation)
+
+      - pattern: |
+          # Use Databricks-managed embeddings only
+          # Vector Search MCP only supports Databricks-managed embedding models
+          index_config = {
+              "embedding_source_column": "content",
+              "embedding_model_endpoint_name": "databricks-bge-large-en"  # Managed model
+          }
+        explanation: Vector Search MCP requires Databricks-managed embeddings
+
+    dont:
+      - pattern: |
+          # Don't use custom/external embeddings with MCP
+          embeddings = openai.embed(text)  # External embedding
+          await vector_search.query(embedding=embeddings)  # Won't work with MCP
+        explanation: MCP Vector Search only supports Databricks-managed embeddings
+
+      - pattern: |
+          # Don't query without specifying catalog.schema context
+          await session.call_tool(
+              "query_index",
+              {"index_name": "my_index", "query": text}  # Missing namespace
+          )
+        explanation: Vector Search requires catalog/schema in URL configuration
+
+  # ============================================================================
+  # UNITY CATALOG FUNCTIONS PATTERNS
+  # ============================================================================
+
+  uc_functions:
+    description: Patterns for Unity Catalog Functions MCP usage
+    severity: warning
+
+    do:
+      - pattern: |
+          # Pre-define functions in Unity Catalog
+          # Then expose via MCP for secure execution
+
+          # SQL to create the function first:
+          # CREATE FUNCTION catalog.schema.get_customer_orders(customer_id INT)
+          # RETURNS TABLE (order_id INT, amount DECIMAL, order_date DATE)
+          # RETURN SELECT * FROM orders WHERE customer_id = get_customer_orders.customer_id;
+
+          # Then call via MCP:
+          async def call_uc_function(function_name: str, params: dict) -> dict:
+              """Execute a predefined Unity Catalog function."""
+              result = await session.call_tool(
+                  "execute_function",
+                  {
+                      "function_name": function_name,
+                      "parameters": params
+                  }
+              )
+              return result
+        explanation: UC Functions run predefined, governance-approved SQL
+
+      - pattern: |
+          # Use for secure, parameterized operations
+          result = await call_uc_function(
+              "catalog.schema.get_user_profile",
+              {"user_id": 12345}
+          )
+        explanation: Functions ensure SQL is pre-approved and parameterized
+
+# ============================================================================
+# CODE GENERATORS
+# ============================================================================
+
+generators:
+  mcp_client_wrapper:
+    description: Generate a unified Databricks MCP client
+    template: |
+      """Databricks MCP Client Wrapper.
+
+      Provides unified interface to all Databricks MCP servers.
+      """
+      from dataclasses import dataclass
+      from typing import Any, Optional
+      import httpx
+      import os
+
+
+      @dataclass
+      class DatabricksMCPConfig:
+          """Configuration for Databricks MCP servers."""
+          workspace_url: str
+          token: str
+          default_catalog: str = "main"
+          default_schema: str = "default"
+          genie_space_id: Optional[str] = None
+
+          @classmethod
+          def from_env(cls) -> "DatabricksMCPConfig":
+              """Create config from environment variables."""
+              return cls(
+                  workspace_url=os.environ["DATABRICKS_HOST"],
+                  token=os.environ["DATABRICKS_TOKEN"],
+                  default_catalog=os.environ.get("DATABRICKS_CATALOG", "main"),
+                  default_schema=os.environ.get("DATABRICKS_SCHEMA", "default"),
+                  genie_space_id=os.environ.get("DATABRICKS_GENIE_SPACE_ID"),
+              )
+
+          def sql_url(self) -> str:
+              return f"{self.workspace_url}/api/2.0/mcp/sql"
+
+          def genie_url(self) -> str:
+              if not self.genie_space_id:
+                  raise ValueError("Genie space ID not configured")
+              return f"{self.workspace_url}/api/2.0/mcp/genie/{self.genie_space_id}"
+
+          def vector_search_url(self) -> str:
+              return (
+                  f"{self.workspace_url}/api/2.0/mcp/vector-search/"
+                  f"{self.default_catalog}/{self.default_schema}"
+              )
+
+          def functions_url(self) -> str:
+              return (
+                  f"{self.workspace_url}/api/2.0/mcp/functions/"
+                  f"{self.default_catalog}/{self.default_schema}"
+              )
+
+
+      class DatabricksMCPClient:
+          """Unified client for Databricks MCP servers."""
+
+          def __init__(self, config: DatabricksMCPConfig):
+              self.config = config
+              self._client = httpx.AsyncClient(
+                  headers={
+                      "Authorization": f"Bearer {config.token}",
+                      "Content-Type": "application/json"
+                  },
+                  timeout=60.0
+              )
+
+          async def execute_sql(
+              self,
+              sql: str,
+              warehouse_id: Optional[str] = None,
+              read_only: bool = False
+          ) -> dict[str, Any]:
+              """Execute SQL via DBSQL MCP server."""
+              endpoint = "execute_sql_read_only" if read_only else "execute_sql"
+              payload = {"statement": sql}
+              if warehouse_id:
+                  payload["warehouse_id"] = warehouse_id
+
+              response = await self._client.post(
+                  f"{self.config.sql_url()}/{endpoint}",
+                  json=payload
+              )
+              response.raise_for_status()
+              return response.json()
+
+          async def genie_query(self, question: str) -> dict[str, Any]:
+              """Query using Genie natural language interface."""
+              response = await self._client.post(
+                  f"{self.config.genie_url()}/query",
+                  json={"question": question}
+              )
+              response.raise_for_status()
+              return response.json()
+
+          async def vector_search(
+              self,
+              query_text: str,
+              index_name: str,
+              num_results: int = 10
+          ) -> list[dict[str, Any]]:
+              """Search vector index for similar documents."""
+              response = await self._client.post(
+                  f"{self.config.vector_search_url()}/query",
+                  json={
+                      "index_name": index_name,
+                      "query_text": query_text,
+                      "num_results": num_results
+                  }
+              )
+              response.raise_for_status()
+              return response.json().get("results", [])
+
+          async def call_function(
+              self,
+              function_name: str,
+              parameters: dict[str, Any]
+          ) -> dict[str, Any]:
+              """Call a Unity Catalog function."""
+              response = await self._client.post(
+                  f"{self.config.functions_url()}/execute",
+                  json={
+                      "function_name": function_name,
+                      "parameters": parameters
+                  }
+              )
+              response.raise_for_status()
+              return response.json()
+
+          async def close(self):
+              """Close the HTTP client."""
+              await self._client.aclose()
+
+          async def __aenter__(self):
+              return self
+
+          async def __aexit__(self, *args):
+              await self.close()
+
+  claude_code_config:
+    description: Generate Claude Code MCP configuration
+    template: |
+      {
+        "mcpServers": {
+          "databricks-sql": {
+            "command": "npx",
+            "args": ["databricks-mcp-server", "--mode", "sql"],
+            "env": {
+              "DATABRICKS_HOST": "${DATABRICKS_HOST}",
+              "DATABRICKS_TOKEN": "${DATABRICKS_TOKEN}"
+            }
+          },
+          "databricks-genie": {
+            "command": "npx",
+            "args": ["databricks-mcp-server", "--mode", "genie"],
+            "env": {
+              "DATABRICKS_HOST": "${DATABRICKS_HOST}",
+              "DATABRICKS_TOKEN": "${DATABRICKS_TOKEN}",
+              "GENIE_SPACE_ID": "${GENIE_SPACE_ID}"
+            }
+          },
+          "databricks-vector-search": {
+            "command": "npx",
+            "args": ["databricks-mcp-server", "--mode", "vector-search"],
+            "env": {
+              "DATABRICKS_HOST": "${DATABRICKS_HOST}",
+              "DATABRICKS_TOKEN": "${DATABRICKS_TOKEN}",
+              "CATALOG": "${DATABRICKS_CATALOG}",
+              "SCHEMA": "${DATABRICKS_SCHEMA}"
+            }
+          }
+        }
+      }
+
+# ============================================================================
+# REFACTORING RULES
+# ============================================================================
+
+refactors:
+  secure_token_handling:
+    description: Move hardcoded tokens to environment variables
+    trigger: '"DATABRICKS_TOKEN"\s*:\s*"dapi[a-zA-Z0-9]+'
+    fix: |
+      # Before: "DATABRICKS_TOKEN": "dapi123..."
+      # After:  "DATABRICKS_TOKEN": "${DATABRICKS_TOKEN}"
+
+  add_read_only_mode:
+    description: Use read_only mode for queries that don't modify data
+    trigger: 'execute_sql.*SELECT'
+    fix: |
+      # Before: execute_sql(sql)
+      # After:  execute_sql_read_only(sql)
