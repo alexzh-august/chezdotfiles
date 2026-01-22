@@ -59,12 +59,15 @@ chezdotfiles/                    # This repo (chezmoi fork + dotfiles)
 │   ├── dot_claude/              # → ~/.claude/
 │   │   ├── agents/              # Custom agents (9 agents)
 │   │   ├── commands/            # Slash commands (17 commands)
-│   │   ├── context/llms/        # LLM context caches
+│   │   ├── context/             # Context files
+│   │   │   ├── llms/            # LLM context caches
+│   │   │   └── coderabbit.yaml  # CodeRabbit config template
 │   │   ├── hooks/               # Automation scripts
 │   │   ├── plugins/             # Claude Code plugins
 │   │   │   └── pr-review-toolkit/  # 6-agent PR review suite
 │   │   ├── settings/            # (placeholder for settings.json)
-│   │   └── skills/              # Skill modules (25+ skills)
+│   │   └── skills/              # Skill modules (26+ skills)
+│   │   │   └── coderabbit.md    # CodeRabbit CLI integration
 │   ├── dot_config/
 │   │   ├── ghostty/config       # Claude-themed terminal
 │   │   └── starship/starship.toml  # Cross-shell prompt
@@ -200,6 +203,66 @@ The included `pr-review-toolkit` plugin provides 6 specialized agents:
 # Parallel execution
 /pr-review-toolkit:review-pr all parallel
 ```
+
+### Using CodeRabbit CLI
+
+[CodeRabbit](https://coderabbit.ai) provides AI-powered code review via CLI, integrated with Claude Code workflows.
+
+**Installation:**
+```bash
+# Install CLI
+curl -fsSL https://cli.coderabbit.ai/install.sh | sh
+
+# Authenticate
+coderabbit auth login
+
+# Verify
+coderabbit auth status
+```
+
+**Review Modes:**
+```bash
+# Interactive review (rich formatting)
+coderabbit review
+
+# Plain text (for AI agents/token efficiency)
+coderabbit review --plain
+
+# Minimal output (maximum token efficiency)
+coderabbit review --prompt-only
+```
+
+**Review Scopes:**
+```bash
+# All changes (default)
+coderabbit review --type all
+
+# Only committed changes
+coderabbit review --type committed
+
+# Only uncommitted changes
+coderabbit review --type uncommitted
+
+# Compare against specific branch
+coderabbit review --base main
+```
+
+**Autonomous Development Loop:**
+```
+Write code → coderabbit review --plain → Apply feedback → Re-review → Commit
+```
+
+Example prompt for Claude Code:
+```
+Implement [feature]. After each change, run `coderabbit review --plain`
+and apply the suggestions until the code passes review.
+```
+
+**Configuration:**
+- Skill: `dotfiles/dot_claude/skills/coderabbit.md`
+- Config template: `dotfiles/dot_claude/context/coderabbit.yaml`
+
+**Rate Limits:** Free=2/hr, Trial=5/hr, Pro=8/hr per seat
 
 ---
 

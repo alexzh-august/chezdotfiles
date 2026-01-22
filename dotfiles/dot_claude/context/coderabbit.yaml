@@ -1,0 +1,93 @@
+# CodeRabbit Configuration Template
+# Copy to project root as .coderabbit.yaml or coderabbit.yaml
+# Docs: https://docs.coderabbit.ai/guides/review-instructions
+
+# Review language (defaults to repository language)
+language: en-US
+
+# Review profile: "chill" for fewer nitpicks, "assertive" for thorough reviews
+tone_instructions: >
+  Be thorough but constructive. Focus on:
+  - Security vulnerabilities (OWASP Top 10)
+  - Performance issues
+  - Code clarity and maintainability
+  - Test coverage gaps
+  - Documentation accuracy
+
+# Early access features
+early_access: false
+
+# Enable free tier for open source
+enable_free_tier: true
+
+# Review settings
+reviews:
+  # Auto-review PRs
+  auto_review:
+    enabled: true
+    drafts: false
+
+  # Request changes vs comments
+  request_changes_workflow: true
+
+  # High-level summary
+  high_level_summary: true
+
+  # Review status: "enabled" or "disabled"
+  poem: disabled
+
+  # Collapse walkthrough
+  collapse_walkthrough: true
+
+  # Path instructions for specific directories
+  path_instructions:
+    - path: "**/*.test.ts"
+      instructions: "Focus on test coverage completeness and edge cases"
+    - path: "**/api/**"
+      instructions: "Check for security vulnerabilities, rate limiting, input validation"
+    - path: "**/migrations/**"
+      instructions: "Verify backward compatibility and rollback safety"
+
+  # Path filters (ignore patterns)
+  path_filters:
+    - "!**/*.lock"
+    - "!**/node_modules/**"
+    - "!**/.git/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/*.min.js"
+    - "!**/*.generated.*"
+
+# Chat settings for PR comments
+chat:
+  # Auto-reply to comments
+  auto_reply: true
+
+# Knowledge base (for Teams/Enterprise)
+knowledge_base:
+  # Link to custom instructions
+  opt_out: false
+  # learnings:
+  #   scope: auto
+
+# Custom instructions (for CLI --config flag)
+instructions: |
+  ## Project Context
+  This is a team dotfiles repository for AI development tools.
+
+  ## Focus Areas
+  - Security: No secrets, tokens, or credentials in configs
+  - Compatibility: Cross-platform support (macOS, Linux)
+  - Documentation: Clear comments and README updates
+  - Best Practices: Follow tool-specific conventions
+
+  ## Code Style
+  - YAML: 2-space indentation
+  - Markdown: Use frontmatter for metadata
+  - Shell: POSIX-compatible where possible
+
+  ## Review Priorities
+  1. Security vulnerabilities (critical)
+  2. Breaking changes (high)
+  3. Missing documentation (medium)
+  4. Style/formatting (low)
