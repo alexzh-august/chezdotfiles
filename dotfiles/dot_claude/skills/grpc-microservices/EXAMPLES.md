@@ -400,8 +400,12 @@ func (s *server) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.L
 }
 
 func main() {
-    // Connect to database
-    db, err := sql.Open("postgres", "postgresql://user:password@localhost/userdb?sslmode=disable")
+    // Connect to database using environment variable
+    dsn := os.Getenv("DATABASE_URL")
+    if dsn == "" {
+        log.Fatal("DATABASE_URL environment variable is required")
+    }
+    db, err := sql.Open("postgres", dsn)
     if err != nil {
         log.Fatalf("failed to connect to database: %v", err)
     }
@@ -1254,6 +1258,17 @@ func (s *server) Chat(stream pb.ChatService_ChatServer) error {
     go func() {
         defer close(sendDone)
 
+        // Wait until messagesChan is initialized (after first message determines the room)
+        // Check for nil to prevent panic when ranging over uninitialized channel
+        for {
+            if messagesChan == nil {
+                // Channel not yet initialized, wait briefly and check again
+                time.Sleep(10 * time.Millisecond)
+                continue
+            }
+            break
+        }
+
         for msg := range messagesChan {
             if err := stream.Send(msg); err != nil {
                 log.Printf("Error sending message to client %s: %v", clientID, err)
@@ -1610,6 +1625,11 @@ func (w *wrappedServerStream) Context() context.Context {
 
 func validateJWT(tokenString, secret string) (*Claims, error) {
     token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+        // SECURITY: Validate the signing algorithm to prevent algorithm confusion attacks
+        // An attacker could send a token signed with "none" or switch from RS256 to HS256
+        if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+            return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+        }
         return []byte(secret), nil
     })
 
@@ -1971,31 +1991,76 @@ import (
 )
 
 type RateLimiter struct {
-    limiters map[string]*rate.Limiter
-    mu       sync.RWMutex
-    rate     rate.Limit
-    burst    int
+    limiters   map[string]*limiterEntry
+    mu         sync.RWMutex
+    rate       rate.Limit
+    burst      int
+    expiration time.Duration
+}
+
+type limiterEntry struct {
+    limiter  *rate.Limiter
+    lastSeen time.Time
 }
 
 func NewRateLimiter(requestsPerSecond int, burst int) *RateLimiter {
-    return &RateLimiter{
-        limiters: make(map[string]*rate.Limiter),
-        rate:     rate.Limit(requestsPerSecond),
-        burst:    burst,
+    rl := &RateLimiter{
+        limiters:   make(map[string]*limiterEntry),
+        rate:       rate.Limit(requestsPerSecond),
+        burst:      burst,
+        expiration: 10 * time.Minute, // Expire unused limiters after 10 minutes
+    }
+
+    // Start background cleanup goroutine to prevent unbounded memory growth
+    go rl.cleanupExpiredLimiters()
+
+    return rl
+}
+
+// cleanupExpiredLimiters periodically removes inactive rate limiters to prevent memory leaks
+func (rl *RateLimiter) cleanupExpiredLimiters() {
+    ticker := time.NewTicker(1 * time.Minute)
+    defer ticker.Stop()
+
+    for range ticker.C {
+        rl.mu.Lock()
+        now := time.Now()
+        for key, entry := range rl.limiters {
+            if now.Sub(entry.lastSeen) > rl.expiration {
+                delete(rl.limiters, key)
+            }
+        }
+        rl.mu.Unlock()
     }
 }
 
 func (rl *RateLimiter) getLimiter(key string) *rate.Limiter {
     rl.mu.RLock()
-    limiter, exists := rl.limiters[key]
+    entry, exists := rl.limiters[key]
     rl.mu.RUnlock()
 
-    if !exists {
+    if exists {
+        // Update last seen time
         rl.mu.Lock()
-        limiter = rate.NewLimiter(rl.rate, rl.burst)
-        rl.limiters[key] = limiter
+        entry.lastSeen = time.Now()
         rl.mu.Unlock()
+        return entry.limiter
     }
+
+    rl.mu.Lock()
+    // Double-check after acquiring write lock
+    if entry, exists = rl.limiters[key]; exists {
+        entry.lastSeen = time.Now()
+        rl.mu.Unlock()
+        return entry.limiter
+    }
+
+    limiter := rate.NewLimiter(rl.rate, rl.burst)
+    rl.limiters[key] = &limiterEntry{
+        limiter:  limiter,
+        lastSeen: time.Now(),
+    }
+    rl.mu.Unlock()
 
     return limiter
 }

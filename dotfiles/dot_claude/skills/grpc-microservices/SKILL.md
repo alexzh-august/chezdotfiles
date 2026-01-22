@@ -803,22 +803,27 @@ gRPC provides built-in client-side load balancing with multiple policies.
 **1. Round Robin**
 
 ```go
-import "google.golang.org/grpc/balancer/roundrobin"
+import (
+    "google.golang.org/grpc/balancer/roundrobin"
+    "google.golang.org/grpc/credentials/insecure"
+)
 
 conn, err := grpc.Dial(
     "dns:///my-service.example.com:50051",
     grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
-    grpc.WithInsecure(),
+    grpc.WithTransportCredentials(insecure.NewCredentials()),
 )
 ```
 
 **2. Pick First (Default)**
 
 ```go
+import "google.golang.org/grpc/credentials/insecure"
+
 conn, err := grpc.Dial(
     "dns:///my-service.example.com:50051",
     grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"pick_first"}`),
-    grpc.WithInsecure(),
+    grpc.WithTransportCredentials(insecure.NewCredentials()),
 )
 ```
 

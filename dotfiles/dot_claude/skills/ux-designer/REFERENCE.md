@@ -280,8 +280,8 @@ Properties:
 - Title: H3, 20px font
 - Description: 16px, 1.5 line-height
 - Border-radius: 8px
-- Shadow: 0 2px 8px rgba(0,0,0,0.1)
-- Hover: Shadow 0 4px 16px rgba(0,0,0,0.15)
+- Shadow: md (0 4px 8px rgba(0,0,0,0.1))
+- Hover: Shadow lg (0 8px 16px rgba(0,0,0,0.1))
 - Transition: 200ms ease
 ```
 
@@ -501,16 +501,16 @@ Lazy load below-fold images
 
 ```
 Properties:
-- Height: 64px (mobile), 80px (desktop)
+- Height: 64px
 - Background: White or brand color
 - Position: Sticky top 0
 - Z-index: 100
 - Shadow: 0 2px 4px rgba(0,0,0,0.1) on scroll
 
 Elements:
-- Logo: 40px height, left-aligned
+- Logo: 40px height (120px × 40px), left-aligned
 - Navigation: Horizontal list (desktop), hamburger (mobile)
-- Search: 300px width (desktop), modal (mobile)
+- Search: 400px × 40px (desktop), modal (mobile)
 - User menu: Dropdown, right-aligned
 
 States:
