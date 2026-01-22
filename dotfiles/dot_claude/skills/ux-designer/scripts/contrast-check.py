@@ -22,6 +22,10 @@ def hex_to_rgb(hex_color):
     if len(hex_color) == 3:
         hex_color = "".join([c * 2 for c in hex_color])
 
+    # Validate length after expansion
+    if len(hex_color) != 6:
+        raise ValueError(f"Invalid hex color: #{hex_color}")
+
     # Convert to RGB
     try:
         r = int(hex_color[0:2], 16)
@@ -188,7 +192,7 @@ def main():
         print("\nNote: Both 3-digit and 6-digit hex codes are supported.")
         print("      The # symbol is optional.")
         print("\n" + "=" * 70 + "\n")
-        sys.exit(1)
+        sys.exit(2)  # Usage error, distinct from AA non-compliance (exit 1)
 
     color1 = sys.argv[1]
     color2 = sys.argv[2]

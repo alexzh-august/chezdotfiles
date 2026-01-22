@@ -681,7 +681,7 @@ Font Families:
 - mono: "Fira Code", Consolas, Monaco, monospace
 
 Scale:
-- xs: 12px / 1rem
+- xs: 12px / 0.75rem
 - sm: 14px / 0.875rem
 - base: 16px / 1rem
 - lg: 18px / 1.125rem

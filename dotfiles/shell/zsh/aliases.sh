@@ -23,8 +23,9 @@ alias gp='git pull'
 # ==============================================================================
 # Claude Code
 # ==============================================================================
-alias cc='claude'
-alias ccp='claude --print'
+# Note: Using 'cl' instead of 'cc' to avoid conflict with C compiler
+alias cl='claude'
+alias clp='claude --print'
 
 # ==============================================================================
 # Development
